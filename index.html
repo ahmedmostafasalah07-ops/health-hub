@@ -9,15 +9,36 @@
 </head>
 <body>
     <header>
-        <h1>Health Hub</h1>
-        <nav>
+        <div class="header-top">
+            <h1>Health Hub</h1>
+            <div id="user-bar" hidden>
+                <span id="user-email"></span>
+                <button type="button" id="logout-btn">Log out</button>
+            </div>
+        </div>
+        <nav id="app-nav" hidden>
             <button data-tab="patients" class="active">Patients</button>
             <button data-tab="doctors">Doctors</button>
             <button data-tab="appointments">Appointments</button>
         </nav>
     </header>
 
-    <main>
+    <section id="auth-section" class="auth-card">
+        <h2>Sign in to Health Hub</h2>
+        <p class="muted">Your data is saved securely in the cloud and synced across your devices.</p>
+        <form id="auth-form">
+            <input id="auth-email" type="email" placeholder="Email" required>
+            <input id="auth-password" type="password" placeholder="Password (min 6 characters)" required>
+            <div class="auth-actions">
+                <button type="submit">Log in</button>
+                <button type="button" id="signup-btn" class="cancel">Create account</button>
+            </div>
+        </form>
+        <p id="auth-error" class="error"></p>
+        <p id="auth-info" class="info"></p>
+    </section>
+
+    <main id="app-main" hidden>
         <section id="patients">
             <h2>Patients</h2>
             <form id="patient-form">
@@ -71,6 +92,7 @@
         </section>
     </main>
 
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="script.js"></script>
 </body>
 </html>
