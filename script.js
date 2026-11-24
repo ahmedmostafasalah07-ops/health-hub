@@ -452,3 +452,4 @@ db.auth.onAuthStateChange(function (_event, session) {
 
 db.auth.getSession().then(function (res) {
     handleSession(res.data.session);
+});
