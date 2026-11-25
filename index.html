@@ -31,7 +31,7 @@
             <div class="password-wrap">
                 <input id="auth-password" type="password" placeholder="Password (min 6 characters)" required>
                 <button type="button" id="toggle-password" class="cancel">Show</button>
-            </div> 
+            </div>
             <div class="auth-actions">
                 <button type="submit">Log in</button>
                 <button type="button" id="signup-btn" class="cancel">Create account</button>
@@ -54,10 +54,12 @@
                 <button type="button" id="p-cancel" class="cancel" hidden>Cancel</button>
             </form>
             <p id="p-error" class="error"></p>
-            <table>
-                <thead><tr><th>ID</th><th>Name</th><th>Age</th><th>Weight</th><th>BMI</th><th>Category</th><th></th></tr></thead>
-                <tbody id="p-body"></tbody>
-            </table>
+            <div class="table-wrap">
+                <table>
+                    <thead><tr><th>ID</th><th>Name</th><th>Age</th><th>Weight</th><th>BMI</th><th>Category</th><th>Actions</th></tr></thead>
+                    <tbody id="p-body"></tbody>
+                </table>
+            </div>
         </section>
 
         <section id="doctors" hidden>
@@ -71,10 +73,12 @@
                 <button type="button" id="d-cancel" class="cancel" hidden>Cancel</button>
             </form>
             <p id="d-error" class="error"></p>
-            <table>
-                <thead><tr><th>ID</th><th>Name</th><th>Age</th><th>Specialty</th><th></th></tr></thead>
-                <tbody id="d-body"></tbody>
-            </table>
+            <div class="table-wrap">
+                <table>
+                    <thead><tr><th>ID</th><th>Name</th><th>Age</th><th>Specialty</th><th>Actions</th></tr></thead>
+                    <tbody id="d-body"></tbody>
+                </table>
+            </div>
         </section>
 
         <section id="appointments" hidden>
@@ -84,16 +88,59 @@
                 <select id="a-doctor"></select>
                 <input id="a-date" type="date">
                 <input id="a-reason" placeholder="Reason">
+                <select id="a-status">
+                    <option value="Scheduled">Scheduled</option>
+                    <option value="Completed">Completed</option>
+                </select>
+                <input id="a-report" placeholder="Doctor's report (optional)">
                 <button type="submit">Book appointment</button>
                 <button type="button" id="a-cancel" class="cancel" hidden>Cancel</button>
             </form>
             <p id="a-error" class="error"></p>
-            <table>
-                <thead><tr><th>#</th><th>Date</th><th>Patient</th><th>Doctor</th><th>Reason</th><th></th></tr></thead>
-                <tbody id="a-body"></tbody>
-            </table>
+            <div class="table-wrap">
+                <table>
+                    <thead><tr><th>#</th><th>Date</th><th>Patient</th><th>Doctor</th><th>Reason</th><th>Status</th><th>Doctor's Report</th><th>Actions</th></tr></thead>
+                    <tbody id="a-body"></tbody>
+                </table>
+            </div>
         </section>
     </main>
+
+    <!-- Patient Health Report Modal -->
+    <div id="health-modal" class="modal-backdrop" hidden>
+        <div class="modal-card">
+            <div class="modal-header">
+                <h2 id="hr-title">Health Report</h2>
+                <button type="button" id="hr-close" class="cancel">Close</button>
+            </div>
+            <div id="hr-body"></div>
+        </div>
+    </div>
+
+    <!-- Doctor's Report / Complete Appointment Modal -->
+    <div id="dr-modal" class="modal-backdrop" hidden>
+        <div class="modal-card">
+            <div class="modal-header">
+                <h2 id="dr-title">Doctor's Report</h2>
+                <button type="button" id="dr-close" class="cancel">Close</button>
+            </div>
+            <p id="dr-subtitle" class="muted"></p>
+            <form id="dr-form" class="modal-form">
+                <label class="field-label">Status</label>
+                <select id="dr-status">
+                    <option value="Completed">Completed</option>
+                    <option value="Scheduled">Scheduled</option>
+                </select>
+                <label class="field-label">Doctor's Report</label>
+                <textarea id="dr-report" rows="5" placeholder="Write diagnosis, notes, or prescription..."></textarea>
+                <div class="auth-actions">
+                    <button type="submit">Save Report</button>
+                    <button type="button" id="dr-cancel" class="cancel">Cancel</button>
+                </div>
+            </form>
+            <p id="dr-error" class="error"></p>
+        </div>
+    </div>
 
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="script.js"></script>
