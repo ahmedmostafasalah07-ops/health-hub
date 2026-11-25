@@ -28,7 +28,10 @@
         <p class="muted">Your data is saved securely in the cloud and synced across your devices.</p>
         <form id="auth-form">
             <input id="auth-email" type="email" placeholder="Email" required>
-            <input id="auth-password" type="password" placeholder="Password (min 6 characters)" required>
+            <div class="password-wrap">
+                <input id="auth-password" type="password" placeholder="Password (min 6 characters)" required>
+                <button type="button" id="toggle-password" class="cancel">Show</button>
+            </div> 
             <div class="auth-actions">
                 <button type="submit">Log in</button>
                 <button type="button" id="signup-btn" class="cancel">Create account</button>
