@@ -111,3 +111,5 @@ td button {
     cursor: pointer;
 }
 td button.danger { color: #FF7A70; }
+.password-wrap { display: flex; gap: 8px; }
+.password-wrap input { flex: 1; }
