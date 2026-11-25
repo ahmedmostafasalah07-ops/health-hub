@@ -55,12 +55,9 @@ body[data-bg="appointments"]::before {
         url("https://images.unsplash.com/photo-1506784983877-45594efa4cbe?auto=format&fit=crop&w=1600&q=80");
 }
 
-header, main { max-width: 1050px; margin: 0 auto; }
+header, main { max-width: 1120px; margin: 0 auto; }
 header { padding: 24px 0 14px; }
-h1 {
-    margin: 0 0 14px;
-    letter-spacing: 0.3px;
-}
+h1 { margin: 0; letter-spacing: 0.3px; }
 
 .header-top {
     display: flex;
@@ -68,6 +65,19 @@ h1 {
     align-items: center;
     gap: 12px;
     flex-wrap: wrap;
+    margin-bottom: 14px;
+}
+
+.brand-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.role-pill {
+    background: rgba(255, 92, 108, 0.22);
+    color: #FF8E99;
+    text-transform: capitalize;
 }
 
 #user-bar {
@@ -118,11 +128,83 @@ section {
     box-shadow: 0 12px 32px rgba(0, 0, 0, 0.35);
 }
 
-.auth-card {
-    max-width: 420px;
-    margin: 32px auto;
+.section-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin-bottom: 14px;
 }
-.auth-card form { flex-direction: column; }
+.section-head h2 { margin: 0 0 6px; }
+
+.auth-card {
+    max-width: 450px;
+    margin: 26px auto;
+}
+
+.mode-tabs {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    margin-bottom: 16px;
+}
+.mode-tabs button {
+    background: rgba(11, 13, 18, 0.7);
+    color: var(--muted);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 10px;
+    font-weight: bold;
+    cursor: pointer;
+    transition: 0.2s;
+}
+.mode-tabs button.active {
+    background: var(--accent);
+    color: #FFFFFF;
+    border-color: var(--accent);
+}
+
+.role-picker {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+}
+.role-picker button {
+    background: rgba(11, 13, 18, 0.75);
+    color: var(--muted);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 9px 6px;
+    font-weight: bold;
+    cursor: pointer;
+    transition: 0.2s;
+}
+.role-picker button.active {
+    background: rgba(255, 92, 108, 0.22);
+    color: #FFFFFF;
+    border-color: var(--accent);
+}
+
+.filter-pills { display: flex; gap: 6px; flex-wrap: wrap; }
+.filter-pills button {
+    background: rgba(11, 13, 18, 0.7);
+    color: var(--muted);
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    padding: 6px 14px;
+    cursor: pointer;
+    font-size: 13px;
+}
+.filter-pills button.active {
+    background: var(--accent);
+    color: #FFFFFF;
+    border-color: var(--accent);
+    font-weight: bold;
+}
+
+.stack-form { display: flex; flex-direction: column; gap: 10px; }
+.stack-fields { display: flex; flex-direction: column; gap: 10px; }
 .auth-actions { display: flex; gap: 10px; }
 .muted { color: var(--muted); font-size: 14px; margin-top: 0; }
 
@@ -144,8 +226,9 @@ input:focus, select:focus, textarea:focus {
     outline: none;
     border-color: var(--accent);
 }
+input:disabled { opacity: 0.6; cursor: not-allowed; }
 
-form button {
+form button, .accent-btn {
     background: var(--accent);
     color: #FFFFFF;
     border: 0;
@@ -155,10 +238,10 @@ form button {
     cursor: pointer;
     transition: 0.2s;
 }
-form button:hover { background: var(--accent-hover); }
+form button:hover, .accent-btn:hover { background: var(--accent-hover); }
 
-.error { color: #FF7A70; min-height: 1.2em; }
-.info { color: #5CE1A6; min-height: 1.2em; }
+.error { color: #FF7A70; min-height: 1.2em; margin-bottom: 0; }
+.info { color: #5CE1A6; min-height: 1.2em; margin-bottom: 0; }
 
 .table-wrap { overflow-x: auto; }
 table { width: 100%; border-collapse: collapse; margin-top: 10px; }
@@ -172,6 +255,7 @@ form button.cancel, button.cancel {
     border-radius: 8px;
     padding: 8px 14px;
     cursor: pointer;
+    font-weight: normal;
     transition: 0.2s;
 }
 form button.cancel:hover, button.cancel:hover {
@@ -224,7 +308,7 @@ td button.success:hover { border-color: #5CE1A6; }
     border-radius: 16px;
     padding: 22px;
     width: 100%;
-    max-width: 560px;
+    max-width: 580px;
     max-height: 85vh;
     overflow-y: auto;
     box-shadow: 0 18px 48px rgba(0, 0, 0, 0.5);
