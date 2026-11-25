@@ -92,7 +92,7 @@
             <div class="role-picker" id="setup-roles">
                 <button type="button" data-role="patient" class="active">Patient</button>
                 <button type="button" data-role="doctor">Doctor</button>
-                <button type="button" data-role="receptionist">Receptionist</button>
+                <button type="button" data-role="receptionist">Admin</button>
             </div>
             <input id="st-name" placeholder="Full Name" required>
 
@@ -110,7 +110,7 @@
             </div>
 
             <div id="st-receptionist-fields" class="stack-fields" hidden>
-                <input id="st-r-code" type="password" placeholder="Receptionist Access Code">
+                <input id="st-r-code" type="password" placeholder="Admin Access Code">
             </div>
 
             <button type="submit">Save &amp; Continue</button>
@@ -145,7 +145,7 @@
 
         <section id="patient-appts-sec" hidden>
             <h2>My Appointments &amp; Doctor Reports</h2>
-            <p class="muted">Appointments are scheduled by the clinic receptionist. After each visit, your doctor's report appears here.</p>
+            <p class="muted">Appointments are scheduled by the clinic admin After each visit, your doctor's report appears here.</p>
             <div class="table-wrap">
                 <table>
                     <thead><tr><th>#</th><th>Date</th><th>Doctor</th><th>Specialty</th><th>Reason</th><th>Status</th><th>Doctor's Report</th></tr></thead>
@@ -190,7 +190,7 @@
 
         <!-- ========== RECEPTIONIST PORTAL ========== -->
         <section id="patients" hidden>
-            <h2>Patients (Receptionist)</h2>
+            <h2>Patients (Admin)</h2>
             <form id="patient-form">
                 <input id="p-id" placeholder="Auto ID" disabled>
                 <input id="p-name" placeholder="Name">
@@ -210,7 +210,7 @@
         </section>
 
         <section id="doctors" hidden>
-            <h2>Doctors (Receptionist)</h2>
+            <h2>Doctors (Admin)</h2>
             <form id="doctor-form">
                 <input id="d-id" placeholder="Auto ID" disabled>
                 <input id="d-name" placeholder="Name">
@@ -229,7 +229,7 @@
         </section>
 
         <section id="appointments" hidden>
-            <h2>Appointments (Receptionist)</h2>
+            <h2>Appointments (Admin)</h2>
             <form id="appt-form">
                 <select id="a-patient"></select>
                 <select id="a-doctor"></select>
@@ -281,7 +281,7 @@
                 </select>
                 <label class="field-label">Doctor's Report (visible to patient)</label>
                 <textarea id="dr-report" rows="4" placeholder="Diagnosis, prescription, follow-up instructions..."></textarea>
-                <label class="field-label">Clinical Notes (internal notes for doctor &amp; receptionist)</label>
+                <label class="field-label">Clinical Notes (internal notes for doctor &amp; admin)</label>
                 <textarea id="dr-notes" rows="3" placeholder="Private clinical observations, symptoms, reminders..."></textarea>
                 <div class="auth-actions">
                     <button type="submit">Save</button>
