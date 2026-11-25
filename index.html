@@ -3,49 +3,196 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Health-Hub</title>
+    <title>health-hub</title>
     <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><rect width='64' height='64' rx='14' fill='%230B0F14'/><path d='M32 54 C32 54 10 40 10 24 C10 15 17 10 24 10 C28.5 10 31 12.5 32 15 C33 12.5 35.5 10 40 10 C47 10 54 15 54 24 C54 40 32 54 32 54 Z' fill='%23FF5C6C'/><polyline points='14,31 23,31 27,21 33,41 38,26 42,31 50,31' fill='none' stroke='%23FFFFFF' stroke-width='4' stroke-linecap='round' stroke-linejoin='round'/></svg>">
     <link rel="stylesheet" href="style.css">
 </head>
-<body>
+<body data-bg="auth">
     <header>
         <div class="header-top">
-            <h1>Health Hub</h1>
+            <div class="brand-row">
+                <h1>Health Hub</h1>
+                <span id="role-badge" class="badge role-pill" hidden></span>
+            </div>
             <div id="user-bar" hidden>
                 <span id="user-email"></span>
                 <button type="button" id="logout-btn">Log out</button>
             </div>
         </div>
-        <nav id="app-nav" hidden>
-            <button data-tab="patients" class="active">Patients</button>
-            <button data-tab="doctors">Doctors</button>
-            <button data-tab="appointments">Appointments</button>
-        </nav>
+        <nav id="app-nav" hidden></nav>
     </header>
 
+    <!-- AUTH SCREEN (LOG IN / CREATE ACCOUNT) -->
     <section id="auth-section" class="auth-card">
-        <h2>Sign in to Health Hub</h2>
-        <p class="muted">Your data is saved securely in the cloud and synced across your devices.</p>
-        <form id="auth-form">
-            <input id="auth-email" type="email" placeholder="Email" required>
+        <div class="mode-tabs">
+            <button type="button" id="tab-login" class="active">Log in</button>
+            <button type="button" id="tab-signup">Create account</button>
+        </div>
+
+        <!-- LOG IN FORM -->
+        <form id="login-form" class="stack-form">
+            <p class="muted">Welcome back! Sign in to open your portal.</p>
+            <input id="login-email" type="email" placeholder="Email" required>
             <div class="password-wrap">
-                <input id="auth-password" type="password" placeholder="Password (min 6 characters)" required>
-                <button type="button" id="toggle-password" class="cancel">Show</button>
+                <input id="login-password" type="password" placeholder="Password" required>
+                <button type="button" id="toggle-login-pass" class="cancel">Show</button>
             </div>
-            <div class="auth-actions">
-                <button type="submit">Log in</button>
-                <button type="button" id="signup-btn" class="cancel">Create account</button>
-            </div>
+            <button type="submit">Log in</button>
         </form>
+
+        <!-- SIGN UP FORM -->
+        <form id="signup-form" class="stack-form" hidden>
+            <p class="muted">Choose your role to create your account:</p>
+            <div class="role-picker" id="signup-roles">
+                <button type="button" data-role="patient" class="active">Patient</button>
+                <button type="button" data-role="doctor">Doctor</button>
+                <button type="button" data-role="receptionist">Receptionist</button>
+            </div>
+
+            <input id="su-email" type="email" placeholder="Email" required>
+            <div class="password-wrap">
+                <input id="su-password" type="password" placeholder="Password (min 6 characters)" required>
+                <button type="button" id="toggle-su-pass" class="cancel">Show</button>
+            </div>
+
+            <input id="su-name" placeholder="Full Name" required>
+
+            <!-- Patient-specific fields -->
+            <div id="su-patient-fields" class="stack-fields">
+                <input id="su-p-age" type="number" placeholder="Age">
+                <input id="su-p-weight" type="number" step="0.1" placeholder="Weight (Kg)">
+                <input id="su-p-height" type="number" step="0.01" placeholder="Height (m) e.g. 1.75">
+                <small class="muted">Your Patient ID (e.g. P1) is created automatically.</small>
+            </div>
+
+            <!-- Doctor-specific fields -->
+            <div id="su-doctor-fields" class="stack-fields" hidden>
+                <input id="su-d-age" type="number" placeholder="Age">
+                <input id="su-d-spec" placeholder="Specialty (e.g. Cardiology)">
+                <input id="su-d-code" type="password" placeholder="Doctor Access Code">
+            </div>
+
+            <!-- Receptionist-specific fields -->
+            <div id="su-receptionist-fields" class="stack-fields" hidden>
+                <input id="su-r-code" type="password" placeholder="Receptionist Access Code">
+            </div>
+
+            <button type="submit">Create account</button>
+        </form>
+
         <p id="auth-error" class="error"></p>
         <p id="auth-info" class="info"></p>
     </section>
 
+    <!-- COMPLETE PROFILE (for existing accounts without a role yet) -->
+    <section id="setup-section" class="auth-card" hidden>
+        <h2>Complete Your Profile</h2>
+        <p class="muted">Select your role to finish setting up your account:</p>
+        <form id="setup-form" class="stack-form">
+            <div class="role-picker" id="setup-roles">
+                <button type="button" data-role="patient" class="active">Patient</button>
+                <button type="button" data-role="doctor">Doctor</button>
+                <button type="button" data-role="receptionist">Receptionist</button>
+            </div>
+            <input id="st-name" placeholder="Full Name" required>
+
+            <div id="st-patient-fields" class="stack-fields">
+                <input id="st-p-age" type="number" placeholder="Age">
+                <input id="st-p-weight" type="number" step="0.1" placeholder="Weight (Kg)">
+                <input id="st-p-height" type="number" step="0.01" placeholder="Height (m) e.g. 1.75">
+                <small class="muted">Your Patient ID is created automatically.</small>
+            </div>
+
+            <div id="st-doctor-fields" class="stack-fields" hidden>
+                <input id="st-d-age" type="number" placeholder="Age">
+                <input id="st-d-spec" placeholder="Specialty">
+                <input id="st-d-code" type="password" placeholder="Doctor Access Code">
+            </div>
+
+            <div id="st-receptionist-fields" class="stack-fields" hidden>
+                <input id="st-r-code" type="password" placeholder="Receptionist Access Code">
+            </div>
+
+            <button type="submit">Save &amp; Continue</button>
+        </form>
+        <p id="setup-error" class="error"></p>
+    </section>
+
+    <!-- MAIN PORTALS -->
     <main id="app-main" hidden>
-        <section id="patients">
-            <h2>Patients</h2>
+
+        <!-- ========== PATIENT PORTAL ========== -->
+        <section id="patient-profile-sec" hidden>
+            <div class="section-head">
+                <div>
+                    <h2 id="pp-heading">My Health Profile</h2>
+                    <p id="pp-advice" class="muted"></p>
+                </div>
+                <button type="button" id="pp-quick-weight" class="accent-btn">Update Weight</button>
+            </div>
+            <div id="pp-stats" class="report-grid"></div>
+            <h3>Update My Details</h3>
+            <form id="pp-edit-form">
+                <input id="pp-name" placeholder="Name">
+                <input id="pp-age" type="number" placeholder="Age">
+                <input id="pp-weight" type="number" step="0.1" placeholder="Weight (Kg)">
+                <input id="pp-height" type="number" step="0.01" placeholder="Height (m)">
+                <button type="submit">Save Details</button>
+            </form>
+            <p id="pp-error" class="error"></p>
+            <p id="pp-info" class="info"></p>
+        </section>
+
+        <section id="patient-appts-sec" hidden>
+            <h2>My Appointments &amp; Doctor Reports</h2>
+            <p class="muted">Appointments are scheduled by the clinic receptionist. After each visit, your doctor's report appears here.</p>
+            <div class="table-wrap">
+                <table>
+                    <thead><tr><th>#</th><th>Date</th><th>Doctor</th><th>Specialty</th><th>Reason</th><th>Status</th><th>Doctor's Report</th></tr></thead>
+                    <tbody id="pp-appts-body"></tbody>
+                </table>
+            </div>
+        </section>
+
+        <!-- ========== DOCTOR PORTAL ========== -->
+        <section id="doctor-appts-sec" hidden>
+            <div class="section-head">
+                <div>
+                    <h2 id="dp-heading">My Appointments</h2>
+                    <p id="dp-subtitle" class="muted"></p>
+                </div>
+                <div class="filter-pills" id="dp-filters">
+                    <button type="button" data-filter="All" class="active">All</button>
+                    <button type="button" data-filter="Scheduled">Scheduled</button>
+                    <button type="button" data-filter="Completed">Completed</button>
+                </div>
+            </div>
+            <div id="dp-stats" class="report-grid"></div>
+            <p id="dp-error" class="error"></p>
+            <div class="table-wrap">
+                <table>
+                    <thead><tr><th>#</th><th>Date</th><th>Patient</th><th>Vitals</th><th>Reason</th><th>Status</th><th>Report</th><th>Notes</th><th>Actions</th></tr></thead>
+                    <tbody id="dp-appts-body"></tbody>
+                </table>
+            </div>
+        </section>
+
+        <section id="doctor-patients-sec" hidden>
+            <h2>My Patients</h2>
+            <p class="muted">Click "Full Report" to see a patient's complete vitals, BMI, and appointment history.</p>
+            <div class="table-wrap">
+                <table>
+                    <thead><tr><th>ID</th><th>Name</th><th>Age</th><th>Weight</th><th>Height</th><th>BMI</th><th>Category</th><th>Actions</th></tr></thead>
+                    <tbody id="dp-patients-body"></tbody>
+                </table>
+            </div>
+        </section>
+
+        <!-- ========== RECEPTIONIST PORTAL ========== -->
+        <section id="patients" hidden>
+            <h2>Patients (Receptionist)</h2>
             <form id="patient-form">
-                <input id="p-id" placeholder="ID (P1)">
+                <input id="p-id" placeholder="Auto ID" disabled>
                 <input id="p-name" placeholder="Name">
                 <input id="p-age" type="number" placeholder="Age">
                 <input id="p-weight" type="number" step="0.1" placeholder="Weight (Kg)">
@@ -63,9 +210,9 @@
         </section>
 
         <section id="doctors" hidden>
-            <h2>Doctors</h2>
+            <h2>Doctors (Receptionist)</h2>
             <form id="doctor-form">
-                <input id="d-id" placeholder="ID (D1)">
+                <input id="d-id" placeholder="Auto ID" disabled>
                 <input id="d-name" placeholder="Name">
                 <input id="d-age" type="number" placeholder="Age">
                 <input id="d-spec" placeholder="Specialty">
@@ -82,7 +229,7 @@
         </section>
 
         <section id="appointments" hidden>
-            <h2>Appointments</h2>
+            <h2>Appointments (Receptionist)</h2>
             <form id="appt-form">
                 <select id="a-patient"></select>
                 <select id="a-doctor"></select>
@@ -93,13 +240,14 @@
                     <option value="Completed">Completed</option>
                 </select>
                 <input id="a-report" placeholder="Doctor's report (optional)">
+                <input id="a-notes" placeholder="Clinical notes (optional)">
                 <button type="submit">Book appointment</button>
                 <button type="button" id="a-cancel" class="cancel" hidden>Cancel</button>
             </form>
             <p id="a-error" class="error"></p>
             <div class="table-wrap">
                 <table>
-                    <thead><tr><th>#</th><th>Date</th><th>Patient</th><th>Doctor</th><th>Reason</th><th>Status</th><th>Doctor's Report</th><th>Actions</th></tr></thead>
+                    <thead><tr><th>#</th><th>Date</th><th>Patient</th><th>Doctor</th><th>Reason</th><th>Status</th><th>Report</th><th>Notes</th><th>Actions</th></tr></thead>
                     <tbody id="a-body"></tbody>
                 </table>
             </div>
@@ -117,24 +265,26 @@
         </div>
     </div>
 
-    <!-- Doctor's Report / Complete Appointment Modal -->
+    <!-- Doctor's Report & Notes Modal -->
     <div id="dr-modal" class="modal-backdrop" hidden>
         <div class="modal-card">
             <div class="modal-header">
-                <h2 id="dr-title">Doctor's Report</h2>
+                <h2 id="dr-title">Doctor's Report &amp; Notes</h2>
                 <button type="button" id="dr-close" class="cancel">Close</button>
             </div>
             <p id="dr-subtitle" class="muted"></p>
             <form id="dr-form" class="modal-form">
-                <label class="field-label">Status</label>
+                <label class="field-label">Appointment Status</label>
                 <select id="dr-status">
                     <option value="Completed">Completed</option>
                     <option value="Scheduled">Scheduled</option>
                 </select>
-                <label class="field-label">Doctor's Report</label>
-                <textarea id="dr-report" rows="5" placeholder="Write diagnosis, notes, or prescription..."></textarea>
+                <label class="field-label">Doctor's Report (visible to patient)</label>
+                <textarea id="dr-report" rows="4" placeholder="Diagnosis, prescription, follow-up instructions..."></textarea>
+                <label class="field-label">Clinical Notes (internal notes for doctor &amp; receptionist)</label>
+                <textarea id="dr-notes" rows="3" placeholder="Private clinical observations, symptoms, reminders..."></textarea>
                 <div class="auth-actions">
-                    <button type="submit">Save Report</button>
+                    <button type="submit">Save</button>
                     <button type="button" id="dr-cancel" class="cancel">Cancel</button>
                 </div>
             </form>
