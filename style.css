@@ -1,10 +1,12 @@
 :root {
-    --bg: #0B0F14;
-    --card: #131A22;
-    --text: #E8EEF4;
-    --muted: #8A97A6;
-    --line: #243040;
-    --accent: #5B8CFF;
+    --bg: #0B0D12;
+    --card: rgba(16, 20, 28, 0.84);
+    --text: #F2F5F9;
+    --muted: #A1AEBE;
+    --line: rgba(255, 255, 255, 0.12);
+    --accent: #FF5C6C; /* Heart Red — use #5B8CFF for Blue Shield or #5CE1A6 for Green Pulse */
+    --accent-hover: #FF7583;
+    --accent-glow: rgba(255, 92, 108, 0.28);
 }
 
 * { box-sizing: border-box; }
@@ -12,15 +14,53 @@
 
 body {
     margin: 0;
+    min-height: 100vh;
     font-family: Arial, sans-serif;
     background: var(--bg);
     color: var(--text);
     padding: 0 16px 40px;
+    position: relative;
+}
+
+/* Dynamic background photo layer */
+body::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
+    transition: background-image 0.5s ease-in-out;
+    background-image:
+        linear-gradient(135deg, rgba(11, 13, 18, 0.84), rgba(32, 12, 18, 0.78)),
+        url("https://images.unsplash.com/photo-1519494026892-80bbd2d6fd0d?auto=format&fit=crop&w=1600&q=80");
+}
+
+body[data-bg="patients"]::before {
+    background-image:
+        linear-gradient(135deg, rgba(11, 13, 18, 0.82), rgba(38, 13, 20, 0.76)),
+        url("https://images.unsplash.com/photo-1579684385127-1ef15d508118?auto=format&fit=crop&w=1600&q=80");
+}
+
+body[data-bg="doctors"]::before {
+    background-image:
+        linear-gradient(135deg, rgba(11, 13, 18, 0.82), rgba(30, 14, 24, 0.76)),
+        url("https://images.unsplash.com/photo-1584982751601-97dcc096659c?auto=format&fit=crop&w=1600&q=80");
+}
+
+body[data-bg="appointments"]::before {
+    background-image:
+        linear-gradient(135deg, rgba(11, 13, 18, 0.82), rgba(36, 15, 22, 0.76)),
+        url("https://images.unsplash.com/photo-1506784983877-45594efa4cbe?auto=format&fit=crop&w=1600&q=80");
 }
 
 header, main { max-width: 1050px; margin: 0 auto; }
-header { padding: 24px 0 12px; }
-h1 { margin: 0 0 14px; }
+header { padding: 24px 0 14px; }
+h1 {
+    margin: 0 0 14px;
+    letter-spacing: 0.3px;
+}
 
 .header-top {
     display: flex;
@@ -39,35 +79,48 @@ h1 { margin: 0 0 14px; }
 }
 
 #logout-btn {
-    background: transparent;
-    color: var(--muted);
+    background: rgba(16, 20, 28, 0.75);
+    color: var(--text);
     border: 1px solid var(--line);
     border-radius: 8px;
     padding: 6px 12px;
     cursor: pointer;
+    transition: 0.2s;
 }
+#logout-btn:hover { border-color: var(--accent); color: var(--accent); }
 
 nav { display: flex; gap: 8px; flex-wrap: wrap; }
 nav button {
     background: var(--card);
     color: var(--muted);
     border: 1px solid var(--line);
-    padding: 8px 16px;
+    padding: 8px 18px;
     border-radius: 999px;
     cursor: pointer;
+    backdrop-filter: blur(10px);
+    transition: 0.2s;
 }
-nav button.active { background: var(--accent); color: #0B0F14; border-color: var(--accent); }
+nav button:hover { color: var(--text); border-color: var(--accent); }
+nav button.active {
+    background: var(--accent);
+    color: #FFFFFF;
+    border-color: var(--accent);
+    font-weight: bold;
+    box-shadow: 0 0 16px var(--accent-glow);
+}
 
 section {
     background: var(--card);
     border: 1px solid var(--line);
-    border-radius: 14px;
-    padding: 20px;
+    border-radius: 16px;
+    padding: 22px;
+    backdrop-filter: blur(14px);
+    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.35);
 }
 
 .auth-card {
     max-width: 420px;
-    margin: 24px auto;
+    margin: 32px auto;
 }
 .auth-card form { flex-direction: column; }
 .auth-actions { display: flex; gap: 10px; }
@@ -78,23 +131,31 @@ section {
 
 form { display: flex; flex-wrap: wrap; gap: 10px; }
 input, select, textarea {
-    background: var(--bg);
+    background: rgba(11, 13, 18, 0.85);
     color: var(--text);
     border: 1px solid var(--line);
     border-radius: 8px;
     padding: 9px 11px;
     font-size: 14px;
     font-family: inherit;
+    transition: border-color 0.2s;
 }
+input:focus, select:focus, textarea:focus {
+    outline: none;
+    border-color: var(--accent);
+}
+
 form button {
     background: var(--accent);
-    color: #0B0F14;
+    color: #FFFFFF;
     border: 0;
     border-radius: 8px;
     padding: 9px 16px;
     font-weight: bold;
     cursor: pointer;
+    transition: 0.2s;
 }
+form button:hover { background: var(--accent-hover); }
 
 .error { color: #FF7A70; min-height: 1.2em; }
 .info { color: #5CE1A6; min-height: 1.2em; }
@@ -111,10 +172,15 @@ form button.cancel, button.cancel {
     border-radius: 8px;
     padding: 8px 14px;
     cursor: pointer;
+    transition: 0.2s;
+}
+form button.cancel:hover, button.cancel:hover {
+    background: rgba(255, 255, 255, 0.06);
+    color: var(--text);
 }
 
 td button {
-    background: transparent;
+    background: rgba(11, 13, 18, 0.6);
     color: var(--accent);
     border: 1px solid var(--line);
     border-radius: 6px;
@@ -122,9 +188,13 @@ td button {
     margin: 2px 6px 2px 0;
     cursor: pointer;
     white-space: nowrap;
+    transition: 0.2s;
 }
+td button:hover { border-color: var(--accent); }
 td button.danger { color: #FF7A70; }
+td button.danger:hover { border-color: #FF7A70; }
 td button.success { color: #5CE1A6; }
+td button.success:hover { border-color: #5CE1A6; }
 
 .badge {
     display: inline-block;
@@ -133,13 +203,14 @@ td button.success { color: #5CE1A6; }
     font-size: 12px;
     font-weight: bold;
 }
-.badge.scheduled { background: rgba(91, 140, 255, 0.18); color: #8EB2FF; }
-.badge.completed { background: rgba(92, 225, 166, 0.18); color: #5CE1A6; }
+.badge.scheduled { background: rgba(255, 92, 108, 0.2); color: #FF8E99; }
+.badge.completed { background: rgba(92, 225, 166, 0.2); color: #5CE1A6; }
 
 .modal-backdrop {
     position: fixed;
     inset: 0;
-    background: rgba(0, 0, 0, 0.72);
+    background: rgba(0, 0, 0, 0.75);
+    backdrop-filter: blur(6px);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -148,14 +219,15 @@ td button.success { color: #5CE1A6; }
 }
 
 .modal-card {
-    background: var(--card);
+    background: rgba(16, 20, 28, 0.96);
     border: 1px solid var(--line);
-    border-radius: 14px;
-    padding: 20px;
+    border-radius: 16px;
+    padding: 22px;
     width: 100%;
     max-width: 560px;
     max-height: 85vh;
     overflow-y: auto;
+    box-shadow: 0 18px 48px rgba(0, 0, 0, 0.5);
 }
 
 .modal-header {
@@ -178,7 +250,7 @@ td button.success { color: #5CE1A6; }
 }
 
 .report-stat {
-    background: var(--bg);
+    background: rgba(11, 13, 18, 0.85);
     border: 1px solid var(--line);
     border-radius: 10px;
     padding: 10px 12px;
@@ -187,7 +259,7 @@ td button.success { color: #5CE1A6; }
 .report-stat strong { font-size: 15px; }
 
 .report-item {
-    background: var(--bg);
+    background: rgba(11, 13, 18, 0.85);
     border: 1px solid var(--line);
     border-radius: 10px;
     padding: 12px;
