@@ -446,6 +446,13 @@ document.getElementById("appt-form").addEventListener("submit", async function (
     await loadAll();
 });
 
+document.getElementById("toggle-password").addEventListener("click", function () {
+    const input = document.getElementById("auth-password");
+    const isHidden = input.type === "password";
+    input.type = isHidden ? "text" : "password";
+    this.textContent = isHidden ? "Hide" : "Show";
+});
+
 db.auth.onAuthStateChange(function (_event, session) {
     handleSession(session);
 });
