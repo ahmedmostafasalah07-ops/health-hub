@@ -39,11 +39,25 @@ function category(b) {
     else return "Obese";
 }
 
+function healthAdvice(cat) {
+    if (cat === "Underweight") return "BMI is below the normal range. Consider a balanced, nutrient-rich diet and doctor checkup.";
+    if (cat === "Normal") return "BMI is in the healthy range. Keep up regular exercise and balanced nutrition.";
+    if (cat === "Overweight") return "BMI is slightly above the normal range. Regular activity and nutrition tracking can help.";
+    return "BMI is in the obese range. Consider a personalized health plan with a doctor.";
+}
+
 function addRow(tbody, cells, actions) {
     const tr = document.createElement("tr");
-    cells.forEach(function (text) {
+    cells.forEach(function (cell) {
         const td = document.createElement("td");
-        td.textContent = text;
+        if (cell && typeof cell === "object" && cell.badge) {
+            const span = document.createElement("span");
+            span.className = "badge " + cell.badge;
+            span.textContent = cell.text;
+            td.appendChild(span);
+        } else {
+            td.textContent = cell;
+        }
         tr.appendChild(td);
     });
     if (actions) {
@@ -52,7 +66,8 @@ function addRow(tbody, cells, actions) {
             const btn = document.createElement("button");
             btn.type = "button";
             btn.textContent = a.label;
-            if (a.label === "Delete") btn.className = "danger";
+            if (a.className) btn.className = a.className;
+            else if (a.label === "Delete") btn.className = "danger";
             btn.addEventListener("click", a.onClick);
             td.appendChild(btn);
         });
@@ -85,6 +100,8 @@ async function loadAll() {
     refreshAll();
 }
 
+/* ---------------- AUTH ---------------- */
+
 async function handleSession(session) {
     const user = session ? session.user : null;
     const userChanged = (user ? user.id : null) !== (currentUser ? currentUser.id : null);
@@ -106,6 +123,8 @@ async function handleSession(session) {
         stopEditPatient();
         stopEditDoctor();
         stopEditAppt();
+        closeHealthReport();
+        closeDoctorReport();
         document.getElementById("auth-section").hidden = false;
         document.getElementById("app-nav").hidden = true;
         document.getElementById("app-main").hidden = true;
@@ -153,6 +172,15 @@ document.getElementById("logout-btn").addEventListener("click", async function (
     await db.auth.signOut();
 });
 
+document.getElementById("toggle-password").addEventListener("click", function () {
+    const input = document.getElementById("auth-password");
+    const isHidden = input.type === "password";
+    input.type = isHidden ? "text" : "password";
+    this.textContent = isHidden ? "Hide" : "Show";
+});
+
+/* ---------------- PATIENTS ---------------- */
+
 let editingPatient = null;
 
 function renderPatients() {
@@ -163,12 +191,121 @@ function renderPatients() {
             body,
             [p.id, p.name, p.age, p.weight + " Kg", bmi(p).toFixed(1), category(bmi(p))],
             [
+                { label: "Update Weight", onClick: function () { updateWeight(p); } },
+                { label: "Health Report", className: "success", onClick: function () { openHealthReport(p); } },
                 { label: "Edit", onClick: function () { startEditPatient(p); } },
                 { label: "Delete", onClick: function () { deletePatient(p); } }
             ]
         );
     });
 }
+
+async function updateWeight(p) {
+    const raw = prompt("Enter new weight (Kg) for " + p.name + ":", p.weight);
+    if (raw === null) return;
+    const newWeight = Number(raw.trim());
+    if (!(newWeight >= 2 && newWeight <= 400)) {
+        alert("Weight must be a number between 2 and 400 Kg.");
+        return;
+    }
+
+    const { error } = await db
+        .from("patients")
+        .update({ weight: newWeight })
+        .eq("id", p.id)
+        .eq("user_id", currentUser.id);
+
+    if (error) return showError("p-error", error.message);
+    showError("p-error", "");
+    await loadAll();
+}
+
+function openHealthReport(p) {
+    const b = bmi(p);
+    const cat = category(b);
+    const pAppts = appointments.filter(function (a) { return a.patient_id === p.id; });
+    const completedCount = pAppts.filter(function (a) { return a.status === "Completed"; }).length;
+    const scheduledCount = pAppts.length - completedCount;
+
+    document.getElementById("hr-title").textContent = "Health Report: " + p.name + " (" + p.id + ")";
+    const container = document.getElementById("hr-body");
+    container.innerHTML = "";
+
+    const grid = document.createElement("div");
+    grid.className = "report-grid";
+    const stats = [
+        ["Age", p.age + " yrs"],
+        ["Weight", p.weight + " Kg"],
+        ["Height", p.height + " m"],
+        ["BMI", b.toFixed(1) + " (" + cat + ")"],
+        ["Scheduled Appts", String(scheduledCount)],
+        ["Completed Appts", String(completedCount)]
+    ];
+    stats.forEach(function (pair) {
+        const card = document.createElement("div");
+        card.className = "report-stat";
+        const label = document.createElement("small");
+        label.textContent = pair[0];
+        const val = document.createElement("strong");
+        val.textContent = pair[1];
+        card.appendChild(label);
+        card.appendChild(val);
+        grid.appendChild(card);
+    });
+    container.appendChild(grid);
+
+    const advice = document.createElement("p");
+    advice.className = "muted";
+    advice.textContent = healthAdvice(cat);
+    container.appendChild(advice);
+
+    const heading = document.createElement("h3");
+    heading.textContent = "Appointments & Doctor Reports";
+    container.appendChild(heading);
+
+    if (pAppts.length === 0) {
+        const empty = document.createElement("p");
+        empty.className = "muted";
+        empty.textContent = "No appointments recorded for this patient yet.";
+        container.appendChild(empty);
+    } else {
+        pAppts.forEach(function (a) {
+            const doc = findById(doctors, a.doctor_id);
+            const item = document.createElement("div");
+            item.className = "report-item";
+
+            const top = document.createElement("div");
+            const title = document.createElement("strong");
+            title.textContent = "#" + a.id + " · " + a.date + " · Dr. " + (doc ? doc.name : "?") + " ";
+            const badge = document.createElement("span");
+            const st = a.status || "Scheduled";
+            badge.className = "badge " + (st === "Completed" ? "completed" : "scheduled");
+            badge.textContent = st;
+            top.appendChild(title);
+            top.appendChild(badge);
+            item.appendChild(top);
+
+            const reason = document.createElement("p");
+            reason.className = "muted";
+            reason.textContent = "Reason: " + a.reason;
+            item.appendChild(reason);
+
+            const rep = document.createElement("p");
+            rep.textContent = "Doctor's Report: " + (a.report ? a.report : "No report added yet.");
+            item.appendChild(rep);
+
+            container.appendChild(item);
+        });
+    }
+
+    document.getElementById("health-modal").hidden = false;
+}
+
+function closeHealthReport() {
+    document.getElementById("health-modal").hidden = true;
+}
+
+document.getElementById("hr-close").addEventListener("click", closeHealthReport);
 
 function startEditPatient(p) {
     editingPatient = p;
@@ -244,6 +381,8 @@ document.getElementById("patient-form").addEventListener("submit", async functio
     stopEditPatient();
     await loadAll();
 });
+
+/* ---------------- DOCTORS ---------------- */
 
 let editingDoctor = null;
 
@@ -334,6 +473,8 @@ document.getElementById("doctor-form").addEventListener("submit", async function
     await loadAll();
 });
 
+/* ---------------- TABS ---------------- */
+
 document.querySelectorAll("#app-nav button").forEach(function (btn) {
     btn.addEventListener("click", function () {
         document.querySelectorAll("#app-main section").forEach(function (s) { s.hidden = true; });
@@ -342,6 +483,8 @@ document.querySelectorAll("#app-nav button").forEach(function (btn) {
         btn.classList.add("active");
     });
 });
+
+/* ---------------- APPOINTMENTS ---------------- */
 
 function fillSelects() {
     const ps = document.getElementById("a-patient");
@@ -357,6 +500,7 @@ function findById(list, id) {
 }
 
 let editingAppt = null;
+let reportingAppt = null;
 
 function renderAppointments() {
     const body = document.getElementById("a-body");
@@ -364,10 +508,25 @@ function renderAppointments() {
     appointments.forEach(function (a) {
         const p = findById(patients, a.patient_id);
         const d = findById(doctors, a.doctor_id);
+        const st = a.status || "Scheduled";
+        const isDone = st === "Completed";
         addRow(
             body,
-            ["#" + a.id, a.date, p ? p.name : "?", d ? d.name : "?", a.reason],
             [
+                "#" + a.id,
+                a.date,
+                p ? p.name : "?",
+                d ? d.name : "?",
+                a.reason,
+                { badge: isDone ? "completed" : "scheduled", text: st },
+                a.report ? a.report : "—"
+            ],
+            [
+                {
+                    label: isDone ? "Doctor's Report" : "Complete",
+                    className: "success",
+                    onClick: function () { openDoctorReport(a); }
+                },
                 { label: "Edit", onClick: function () { startEditAppt(a); } },
                 { label: "Delete", onClick: function () { deleteAppt(a); } }
             ]
@@ -375,12 +534,57 @@ function renderAppointments() {
     });
 }
 
+function openDoctorReport(a) {
+    reportingAppt = a;
+    const p = findById(patients, a.patient_id);
+    const d = findById(doctors, a.doctor_id);
+    document.getElementById("dr-title").textContent = "Appointment #" + a.id + " — Doctor's Report";
+    document.getElementById("dr-subtitle").textContent =
+        (p ? p.name : "?") + " with Dr. " + (d ? d.name : "?") + " on " + a.date + " (" + a.reason + ")";
+    document.getElementById("dr-status").value = "Completed";
+    document.getElementById("dr-report").value = a.report || "";
+    showError("dr-error", "");
+    document.getElementById("dr-modal").hidden = false;
+}
+
+function closeDoctorReport() {
+    reportingAppt = null;
+    document.getElementById("dr-modal").hidden = true;
+}
+
+document.getElementById("dr-close").addEventListener("click", closeDoctorReport);
+document.getElementById("dr-cancel").addEventListener("click", closeDoctorReport);
+
+document.getElementById("dr-form").addEventListener("submit", async function (e) {
+    e.preventDefault();
+    if (!reportingAppt) return;
+
+    const status = document.getElementById("dr-status").value;
+    const report = document.getElementById("dr-report").value.trim();
+
+    if (status === "Completed" && report === "") {
+        return showError("dr-error", "Please write the doctor's report before completing the appointment.");
+    }
+
+    const { error } = await db
+        .from("appointments")
+        .update({ status: status, report: report })
+        .eq("id", reportingAppt.id)
+        .eq("user_id", currentUser.id);
+
+    if (error) return showError("dr-error", error.message);
+    closeDoctorReport();
+    await loadAll();
+});
+
 function startEditAppt(a) {
     editingAppt = a;
     document.getElementById("a-patient").value = a.patient_id;
     document.getElementById("a-doctor").value = a.doctor_id;
     document.getElementById("a-date").value = a.date;
     document.getElementById("a-reason").value = a.reason;
+    document.getElementById("a-status").value = a.status || "Scheduled";
+    document.getElementById("a-report").value = a.report || "";
     document.querySelector("#appt-form button[type=submit]").textContent = "Save changes";
     document.getElementById("a-cancel").hidden = false;
     showError("a-error", "");
@@ -422,6 +626,8 @@ document.getElementById("appt-form").addEventListener("submit", async function (
     const doctorId = document.getElementById("a-doctor").value.trim();
     const date = document.getElementById("a-date").value;
     const reason = document.getElementById("a-reason").value.trim();
+    const status = document.getElementById("a-status").value;
+    const report = document.getElementById("a-report").value.trim();
 
     if (patientId === "" || doctorId === "") return showError("a-error", "Add at least one patient and one doctor first.");
     if (!validDate(date)) return showError("a-error", "Please choose a valid date.");
@@ -431,13 +637,13 @@ document.getElementById("appt-form").addEventListener("submit", async function (
     if (editingAppt) {
         result = await db
             .from("appointments")
-            .update({ patient_id: patientId, doctor_id: doctorId, date: date, reason: reason })
+            .update({ patient_id: patientId, doctor_id: doctorId, date: date, reason: reason, status: status, report: report })
             .eq("id", editingAppt.id)
             .eq("user_id", currentUser.id);
     } else {
         result = await db
             .from("appointments")
-            .insert({ patient_id: patientId, doctor_id: doctorId, date: date, reason: reason });
+            .insert({ patient_id: patientId, doctor_id: doctorId, date: date, reason: reason, status: status, report: report });
     }
 
     if (result.error) return showError("a-error", result.error.message);
@@ -446,12 +652,7 @@ document.getElementById("appt-form").addEventListener("submit", async function (
     await loadAll();
 });
 
-document.getElementById("toggle-password").addEventListener("click", function () {
-    const input = document.getElementById("auth-password");
-    const isHidden = input.type === "password";
-    input.type = isHidden ? "text" : "password";
-    this.textContent = isHidden ? "Hide" : "Show";
-});
+/* ---------------- STARTUP ---------------- */
 
 db.auth.onAuthStateChange(function (_event, session) {
     handleSession(session);
