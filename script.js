@@ -113,6 +113,8 @@ async function handleSession(session) {
         document.getElementById("app-main").hidden = false;
         document.getElementById("user-bar").hidden = false;
         document.getElementById("user-email").textContent = currentUser.email;
+        const activeBtn = document.querySelector("#app-nav button.active");
+        document.body.dataset.bg = activeBtn ? activeBtn.dataset.tab : "patients";
         if (userChanged) {
             await loadAll();
         }
@@ -130,6 +132,7 @@ async function handleSession(session) {
         document.getElementById("app-main").hidden = true;
         document.getElementById("user-bar").hidden = true;
         document.getElementById("user-email").textContent = "";
+        document.body.dataset.bg = "auth";
         refreshAll();
     }
 }
@@ -481,6 +484,7 @@ document.querySelectorAll("#app-nav button").forEach(function (btn) {
         document.getElementById(btn.dataset.tab).hidden = false;
         document.querySelectorAll("#app-nav button").forEach(function (b) { b.classList.remove("active"); });
         btn.classList.add("active");
+        document.body.dataset.bg = btn.dataset.tab;
     });
 });
 
