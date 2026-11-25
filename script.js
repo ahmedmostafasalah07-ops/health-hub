@@ -185,7 +185,7 @@ function readRolePayload(prefix, role) {
     }
 
     const rCode = document.getElementById(prefix + "-r-code").value.trim();
-    if (!rCode) return { error: "Receptionist Access Code is required." };
+    if (!rCode) return { error: "Admin Access Code is required." };
     return {
         p_role: "receptionist",
         p_name: name,
@@ -366,7 +366,7 @@ async function loadUserPortal(user) {
     document.getElementById("app-main").hidden = false;
 
     const badge = document.getElementById("role-badge");
-    badge.textContent = profile.role;
+    badge.textContent = profile.role === "receptionist" ? "Admin" : pprofile.role;
     badge.hidden = false;
 
     if (profile.role === "patient") {
