@@ -43,7 +43,9 @@ let selectedBookingTime = "";
 let realtimeChannel = null;
 let syncInterval = null;
 let syncTimer = null;
-let isLoadingData = false;
+let isLoadingData = false;let pendingReload = false;
+let lastDataHash = "";
+let lastSlotsKey = "";
 
 /* ---------------- HELPERS ---------------- */
 
@@ -359,8 +361,8 @@ document.getElementById("signup-form").addEventListener("submit", async function
         return showError("setup-error", reg.error.message + " Try again below.");
     }
 
-    await db.auth.updateUser({ data: { pending_reg: null } });
-    await sendWelcomeEmail(email, payload, reg.data);
+    db.auth.updateUser({ data: { pending_reg: null } });
+    sendWelcomeEmail(email, payload, reg.data);
     document.getElementById("signup-form").reset();
     await loadUserPortal(data.session.user);
 });
@@ -375,8 +377,8 @@ document.getElementById("setup-form").addEventListener("submit", async function 
     const reg = await db.rpc("complete_registration", payload);
     if (reg.error) return showError("setup-error", reg.error.message);
 
-    await db.auth.updateUser({ data: { pending_reg: null } });
-    await sendWelcomeEmail(currentUser.email, payload, reg.data);
+    db.auth.updateUser({ data: { pending_reg: null } });
+    sendWelcomeEmail(currentUser.email, payload, reg.data);
     document.getElementById("setup-form").reset();
     await loadUserPortal(currentUser);
 });
@@ -603,8 +605,8 @@ async function loadUserPortal(user) {
         const pending = user.user_metadata.pending_reg;
         const reg = await db.rpc("complete_registration", pending);
         if (!reg.error) {
-            await db.auth.updateUser({ data: { pending_reg: null } });
-            await sendWelcomeEmail(user.email, pending, reg.data);
+            db.auth.updateUser({ data: { pending_reg: null } });
+            sendWelcomeEmail(user.email, pending, reg.data);
             const refetch = await db.from("profiles").select("*").eq("user_id", user.id).maybeSingle();
             profile = refetch.data;
         } else {
@@ -662,7 +664,7 @@ function scheduleLiveRefresh() {
     clearTimeout(syncTimer);
     syncTimer = setTimeout(function () {
         loadAll(true);
-    }, 300);
+    }, 250);
 }
 
 function startLiveSync() {
@@ -676,6 +678,105 @@ function startLiveSync() {
         .on("postgres_changes", { event: "*", schema: "public", table: "appointments" }, scheduleLiveRefresh)
         .on("postgres_changes", { event: "*", schema: "public", table: "doctor_availability" }, scheduleLiveRefresh)
         .subscribe();
+
+    // Lightweight backup sync every 30s (only redraws if data actually changed!)
+    syncInterval = setInterval(function () {
+        if (!document.hidden && currentProfile) {
+            loadAll(true);
+        }
+    }, 30000);
+}
+
+function stopLiveSync() {
+    clearTimeout(syncTimer);
+    lastDataHash = "";
+    lastSlotsKey = "";
+    pendingReload = false;
+    if (syncInterval) {
+        clearInterval(syncInterval);
+        syncInterval = null;
+    }
+    if (realtimeChannel) {
+        db.removeChannel(realtimeChannel);
+        realtimeChannel = null;
+    }
+}
+
+document.addEventListener("visibilitychange", function () {
+    if (!document.hidden && currentProfile) {
+        loadAll(true);
+    }
+});
+
+async function loadAll(isSilent) {
+    if (!currentProfile) return;
+    if (isLoadingData) {
+        if (!isSilent) pendingReload = true;
+        return;
+    }
+    clearTimeout(syncTimer);
+    isLoadingData = true;
+
+    try {
+        const [pRes, dRes, aRes, avRes] = await Promise.all([
+            db.from("patients").select("*").order("created_at", { ascending: true }),
+            db.from("doctors").select("*").order("created_at", { ascending: true }),
+            db.from("appointments").select("*").order("date", { ascending: true }).order("appt_time", { ascending: true }),
+            db.from("doctor_availability").select("*").order("day_of_week", { ascending: true })
+        ]);
+
+        const newP = pRes.data || [];
+        const newD = dRes.data || [];
+        const newA = aRes.data || [];
+        const newAv = avRes.data || [];
+
+        // Skip redrawing the entire UI if nothing in the database changed!
+        const newHash = JSON.stringify([newP, newD, newA, newAv]);
+        if (isSilent && newHash === lastDataHash) {
+            if (currentProfile.role === "patient" && selectedBookingDate) {
+                const docId = document.getElementById("pb-doctor").value;
+                const dow = dayOfWeekFromDate(selectedBookingDate);
+                const dayAvail = availability.find(function (av) { return av.doctor_id === docId && av.day_of_week === dow; });
+                if (docId && dayAvail) {
+                    await renderPatientBookingTimes(docId, selectedBookingDate, dayAvail, true);
+                }
+            }
+            return;
+        }
+        lastDataHash = newHash;
+
+        patients = newP;
+        doctors = newD;
+        appointments = newA;
+        availability = newAv;
+
+        if (currentProfile.role === "patient") {
+            myPatient = patients.find(function (p) { return p.auth_user_id === currentUser.id; }) || patients[0] || null;
+            renderPatientPortal(!!isSilent);
+        } else if (currentProfile.role === "doctor") {
+            myDoctor = doctors.find(function (d) { return d.auth_user_id === currentUser.id; }) || null;
+            renderDoctorPortal();
+            renderDoctorAvailability();
+        } else {
+            if (pRes.error) showError("p-error", pRes.error.message);
+            if (dRes.error) showError("d-error", dRes.error.message);
+            if (aRes.error) showError("a-error", aRes.error.message);
+            renderPatients();
+            renderDoctors();
+            if (!editingAppt) {
+                fillSelects();
+                await refreshTimeSlots("a-doctor", "a-date", "a-time", "a-avail-hint", null);
+            }
+            renderAppointments();
+        }
+    } finally {
+        isLoadingData = false;
+        if (pendingReload) {
+            pendingReload = false;
+            loadAll(false);
+        }
+    }
+}
 
     // Backup auto-sync every 8 seconds so all accounts always stay up to date
     syncInterval = setInterval(function () {
@@ -952,16 +1053,124 @@ function renderPatientBookingDates(keepSelection) {
     renderPatientBookingTimes(docId, chosen.iso, chosen.avail, !!keepSelection);
 }
 
-async function renderPatientBookingTimes(docId, dateIso, dayAvail, keepSelection) {
-    const timesBox = document.getElementById("pb-times");
-    const prevSelected = keepSelection ? selectedBookingTime : "";
-    if (!keepSelection) {
-        timesBox.innerHTML = "<span class='muted'>Loading available times...</span>";
-        selectedBookingTime = "";
-    }
+function scheduleLiveRefresh() {
+    if (!currentProfile) return;
+    clearTimeout(syncTimer);
+    syncTimer = setTimeout(function () {
+        loadAll(true);
+    }, 250);
+}
 
-    const bookedRes = await db.rpc("get_booked_slots", { p_doctor_id: docId, p_date: dateIso });
-    const booked = (bookedRes.data || []).map(function (r) { return hhmm(r.appt_time); });
+function startLiveSync() {
+    stopLiveSync();
+    if (!currentProfile) return;
+
+    realtimeChannel = db
+        .channel("healthhub-live-" + tabId)
+        .on("postgres_changes", { event: "*", schema: "public", table: "patients" }, scheduleLiveRefresh)
+        .on("postgres_changes", { event: "*", schema: "public", table: "doctors" }, scheduleLiveRefresh)
+        .on("postgres_changes", { event: "*", schema: "public", table: "appointments" }, scheduleLiveRefresh)
+        .on("postgres_changes", { event: "*", schema: "public", table: "doctor_availability" }, scheduleLiveRefresh)
+        .subscribe();
+
+    // Lightweight backup sync every 30s (only redraws if data actually changed!)
+    syncInterval = setInterval(function () {
+        if (!document.hidden && currentProfile) {
+            loadAll(true);
+        }
+    }, 30000);
+}
+
+function stopLiveSync() {
+    clearTimeout(syncTimer);
+    lastDataHash = "";
+    lastSlotsKey = "";
+    pendingReload = false;
+    if (syncInterval) {
+        clearInterval(syncInterval);
+        syncInterval = null;
+    }
+    if (realtimeChannel) {
+        db.removeChannel(realtimeChannel);
+        realtimeChannel = null;
+    }
+}
+
+document.addEventListener("visibilitychange", function () {
+    if (!document.hidden && currentProfile) {
+        loadAll(true);
+    }
+});
+
+async function loadAll(isSilent) {
+    if (!currentProfile) return;
+    if (isLoadingData) {
+        if (!isSilent) pendingReload = true;
+        return;
+    }
+    clearTimeout(syncTimer);
+    isLoadingData = true;
+
+    try {
+        const [pRes, dRes, aRes, avRes] = await Promise.all([
+            db.from("patients").select("*").order("created_at", { ascending: true }),
+            db.from("doctors").select("*").order("created_at", { ascending: true }),
+            db.from("appointments").select("*").order("date", { ascending: true }).order("appt_time", { ascending: true }),
+            db.from("doctor_availability").select("*").order("day_of_week", { ascending: true })
+        ]);
+
+        const newP = pRes.data || [];
+        const newD = dRes.data || [];
+        const newA = aRes.data || [];
+        const newAv = avRes.data || [];
+
+        // Skip redrawing the entire UI if nothing in the database changed!
+        const newHash = JSON.stringify([newP, newD, newA, newAv]);
+        if (isSilent && newHash === lastDataHash) {
+            if (currentProfile.role === "patient" && selectedBookingDate) {
+                const docId = document.getElementById("pb-doctor").value;
+                const dow = dayOfWeekFromDate(selectedBookingDate);
+                const dayAvail = availability.find(function (av) { return av.doctor_id === docId && av.day_of_week === dow; });
+                if (docId && dayAvail) {
+                    await renderPatientBookingTimes(docId, selectedBookingDate, dayAvail, true);
+                }
+            }
+            return;
+        }
+        lastDataHash = newHash;
+
+        patients = newP;
+        doctors = newD;
+        appointments = newA;
+        availability = newAv;
+
+        if (currentProfile.role === "patient") {
+            myPatient = patients.find(function (p) { return p.auth_user_id === currentUser.id; }) || patients[0] || null;
+            renderPatientPortal(!!isSilent);
+        } else if (currentProfile.role === "doctor") {
+            myDoctor = doctors.find(function (d) { return d.auth_user_id === currentUser.id; }) || null;
+            renderDoctorPortal();
+            renderDoctorAvailability();
+        } else {
+            if (pRes.error) showError("p-error", pRes.error.message);
+            if (dRes.error) showError("d-error", dRes.error.message);
+            if (aRes.error) showError("a-error", aRes.error.message);
+            renderPatients();
+            renderDoctors();
+            if (!editingAppt) {
+                fillSelects();
+                await refreshTimeSlots("a-doctor", "a-date", "a-time", "a-avail-hint", null);
+            }
+            renderAppointments();
+        }
+    } finally {
+        isLoadingData = false;
+        if (pendingReload) {
+            pendingReload = false;
+            loadAll(false);
+        }
+    }
+}
 
     const now = new Date();
     const todayIso = toLocalIsoDate(now);
