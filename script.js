@@ -735,6 +735,7 @@ function applyPortalView() {
             { label: "Appointments", sectionId: "appointments", bg: "appointments" }
         ]);
     }
+    
 }
 
 function scheduleLiveRefresh() {
