@@ -2,9 +2,9 @@ const SUPABASE_URL = "https://uzjobtodofcwdrybykuy.supabase.co";
 const SUPABASE_KEY = "sb_publishable_rY5kXxNWYKRywqaS50HTSA_VPkrKek_";
 
 // Optional EmailJS settings for Welcome Emails after sign-up:
-const EMAILJS_PUBLIC_KEY = "";
-const EMAILJS_SERVICE_ID = "";
-const EMAILJS_TEMPLATE_ID = "";
+const EMAILJS_PUBLIC_KEY = "xHopPrNzKCEaQxiI1";
+const EMAILJS_SERVICE_ID = "service_6teeq3t";
+const EMAILJS_TEMPLATE_ID = "template_tdpelvi";
 
 let tabId = sessionStorage.getItem("hh_tab_id");
 if (!tabId) {
