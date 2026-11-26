@@ -155,8 +155,18 @@
                     <div id="pb-times" class="slot-grid time-grid"></div>
                 </div>
 
-                <div class="booking-step booking-submit">
-                    <input id="pb-reason" placeholder="Reason for visit (e.g. Checkup)">
+                                <div class="booking-step booking-submit">
+                    <select id="pb-reason">
+                        <option value="">Reason (optional)</option>
+                        <option value="General Checkup">General Checkup</option>
+                        <option value="Follow-up Visit">Follow-up Visit</option>
+                        <option value="New Symptoms / Consultation">New Symptoms / Consultation</option>
+                        <option value="Lab / Test Results">Lab / Test Results</option>
+                        <option value="Prescription Refill">Prescription Refill</option>
+                        <option value="Vaccination">Vaccination</option>
+                        <option value="Other">Other (write custom)</option>
+                    </select>
+                    <input id="pb-reason-other" placeholder="Write your reason (optional)" hidden>
                     <button type="submit" id="pb-submit">Book appointment</button>
                 </div>
             </form>
