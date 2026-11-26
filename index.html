@@ -400,6 +400,45 @@
         </div>
     </div>
 
+        <!-- Admin: Manage Doctor Availability Modal -->
+    <div id="avail-modal" class="modal-backdrop" hidden>
+        <div class="modal-card">
+            <div class="modal-header">
+                <h2 id="am-title">Doctor Availability</h2>
+                <button type="button" id="am-close" class="cancel">Close</button>
+            </div>
+            <form id="am-form">
+                <select id="am-day">
+                    <option value="0">Sunday</option>
+                    <option value="1">Monday</option>
+                    <option value="2">Tuesday</option>
+                    <option value="3">Wednesday</option>
+                    <option value="4">Thursday</option>
+                    <option value="5">Friday</option>
+                    <option value="6">Saturday</option>
+                </select>
+                <input id="am-start" type="time" value="09:00">
+                <input id="am-end" type="time" value="17:00">
+                <select id="am-slot">
+                    <option value="15">Every 15 min</option>
+                    <option value="20">Every 20 min</option>
+                    <option value="30" selected>Every 30 min</option>
+                    <option value="45">Every 45 min</option>
+                    <option value="60">Every 60 min</option>
+                </select>
+                <button type="submit">Save Day Hours</button>
+            </form>
+            <p id="am-error" class="error"></p>
+            <p id="am-info" class="info"></p>
+            <div class="table-wrap">
+                <table>
+                    <thead><tr><th>Day</th><th>Start</th><th>End</th><th>Slot</th><th>Actions</th></tr></thead>
+                    <tbody id="am-body"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
     <script src="script.js"></script>
