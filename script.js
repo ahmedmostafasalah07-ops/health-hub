@@ -570,6 +570,7 @@ async function handleSession(session) {
         closeHealthReport();
         closeDoctorReport();
         closeProfileModal();
+        closeAvailModal();
         document.getElementById("auth-section").hidden = false;
         document.getElementById("setup-section").hidden = true;
         document.getElementById("app-nav").hidden = true;
@@ -1380,8 +1381,19 @@ function renderDoctorAvailability() {
     mine.forEach(function (av) {
         addRow(
             body,
-            [DAY_NAMES[av.day_of_week], hhmm(av.start_time), hhmm(av.end_time), av.slot_minutes + " min"],
+            [DAY_NAMES[av.day_of_week], format12Hour(av.start_time), format12Hour(av.end_time), av.slot_minutes + " min"],
             [
+                {
+                    label: "Edit",
+                    onClick: function () {
+                        document.getElementById("av-day").value = String(av.day_of_week);
+                        document.getElementById("av-start").value = hhmm(av.start_time);
+                        document.getElementById("av-end").value = hhmm(av.end_time);
+                        document.getElementById("av-slot").value = String(av.slot_minutes);
+                        showError("av-error", "");
+                        showInfo("av-info", "Editing " + DAY_NAMES[av.day_of_week] + " — adjust hours and click Save Day Hours.");
+                    }
+                },
                 {
                     label: "Delete",
                     onClick: async function () {
@@ -1395,7 +1407,6 @@ function renderDoctorAvailability() {
         );
     });
 }
-
 document.getElementById("avail-form").addEventListener("submit", async function (e) {
     e.preventDefault();
     if (!myDoctor) return;
@@ -1675,8 +1686,6 @@ document.getElementById("patient-form").addEventListener("submit", async functio
 
 /* ---------------- ADMIN: DOCTORS ---------------- */
 
-let editingDoctor = null;
-
 function renderDoctors() {
     const body = document.getElementById("d-body");
     body.innerHTML = "";
@@ -1690,6 +1699,110 @@ function renderDoctors() {
             ]
         );
     });
+}
+
+let editingDoctor = null;
+let managingAvailDoctor = null;
+
+function openAvailModal(d) {
+    managingAvailDoctor = d;
+    document.getElementById("am-title").textContent = "Availability — Dr. " + d.name + " (" + d.id + ")";
+    showError("am-error", "");
+    showInfo("am-info", "");
+    renderAvailModalTable();
+    document.getElementById("avail-modal").hidden = false;
+}
+
+function closeAvailModal() {
+    managingAvailDoctor = null;
+    document.getElementById("avail-modal").hidden = true;
+}
+
+function renderAvailModalTable() {
+    if (!managingAvailDoctor) return;
+    const body = document.getElementById("am-body");
+    body.innerHTML = "";
+    const list = availability.filter(function (av) { return av.doctor_id === managingAvailDoctor.id; });
+    if (list.length === 0) {
+        addRow(body, ["No available days set yet.", "", "", "", ""]);
+        return;
+    }
+    list.forEach(function (av) {
+        addRow(
+            body,
+            [DAY_NAMES[av.day_of_week], format12Hour(av.start_time), format12Hour(av.end_time), av.slot_minutes + " min"],
+            [
+                {
+                    label: "Edit",
+                    onClick: function () {
+                        document.getElementById("am-day").value = String(av.day_of_week);
+                        document.getElementById("am-start").value = hhmm(av.start_time);
+                        document.getElementById("am-end").value = hhmm(av.end_time);
+                        document.getElementById("am-slot").value = String(av.slot_minutes);
+                        showError("am-error", "");
+                        showInfo("am-info", "Editing " + DAY_NAMES[av.day_of_week] + " — adjust hours and click Save Day Hours.");
+                    }
+                },
+                {
+                    label: "Delete",
+                    onClick: async function () {
+                        const { error } = await db.from("doctor_availability").delete().eq("id", av.id);
+                        if (error) return showError("am-error", error.message);
+                        showInfo("am-info", DAY_NAMES[av.day_of_week] + " removed.");
+                        await loadAll();
+                        renderAvailModalTable();
+                    }
+                }
+            ]
+        );
+    });
+}
+
+document.getElementById("am-close").addEventListener("click", closeAvailModal);
+
+document.getElementById("am-form").addEventListener("submit", async function (e) {
+    e.preventDefault();
+    if (!managingAvailDoctor) return;
+    showError("am-error", "");
+    showInfo("am-info", "");
+
+    const day = Number(document.getElementById("am-day").value);
+    const startTime = document.getElementById("am-start").value;
+    const endTime = document.getElementById("am-end").value;
+    const slotMin = Number(document.getElementById("am-slot").value);
+
+    if (!startTime || !endTime || timeToMinutes(endTime) <= timeToMinutes(startTime)) {
+        return showError("am-error", "End time must be after start time.");
+    }
+
+    const { error } = await db
+        .from("doctor_availability")
+        .upsert(
+            { doctor_id: managingAvailDoctor.id, day_of_week: day, start_time: startTime, end_time: endTime, slot_minutes: slotMin },
+            { onConflict: "doctor_id,day_of_week" }
+        );
+
+    if (error) return showError("am-error", error.message);
+    showInfo("am-info", "Saved " + DAY_NAMES[day] + " (" + format12Hour(startTime) + " - " + format12Hour(endTime) + ")!");
+    await loadAll();
+    renderAvailModalTable();
+});
+
+function renderDoctors() {
+    const body = document.getElementById("d-body");
+    body.innerHTML = "";
+    doctors.forEach(function (d) {
+        addRow(
+            body,
+            [d.id, d.name, d.age, d.specialty, doctorScheduleSummary(d.id)],
+            [
+                { label: "Availability", className: "success", onClick: function () { openAvailModal(d); } },
+                { label: "Edit", onClick: function () { startEditDoctor(d); } },
+                { label: "Delete", onClick: function () { deleteDoctor(d); } }
+            ]
+        );
+    });
+    if (managingAvailDoctor) renderAvailModalTable();
 }
 
 function startEditDoctor(d) {
