@@ -226,7 +226,11 @@ document.getElementById("signup-form").addEventListener("submit", async function
     if (payload.error) return showError("auth-error", payload.error);
 
     isSigningUp = true;
-    const { data, error } = await db.auth.signUp({ email: email, password: password });
+    const { data, error } = await db.auth.signUp({
+    email: email,
+    password: password,
+    options: { emailRedirectTo: window.location.origin + window.location.pathname }
+});
     if (error) {
         isSigningUp = false;
         return showError("auth-error", error.message);
