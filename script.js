@@ -1,7 +1,14 @@
 const SUPABASE_URL = "https://uzjobtodofcwdrybykuy.supabase.co";
 const SUPABASE_KEY = "sb_publishable_rY5kXxNWYKRywqaS50HTSA_VPkrKek_";
 
+// Optional EmailJS settings for automatic Welcome Emails after sign-up (see Step 3 below):
+const EMAILJS_PUBLIC_KEY = "";
+const EMAILJS_SERVICE_ID = "";
+const EMAILJS_TEMPLATE_ID = "";
+
 const db = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+const DAY_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 
 let currentUser = null;
 let currentProfile = null;
@@ -11,6 +18,7 @@ let myDoctor = null;
 let patients = [];
 let doctors = [];
 let appointments = [];
+let availability = [];
 let doctorFilter = "All";
 
 let signupRole = "patient";
@@ -65,6 +73,27 @@ function validDate(text) {
     return d.getMonth() === parts[1] - 1 && d.getDate() === parts[2];
 }
 
+function dayOfWeekFromDate(text) {
+    const parts = text.split("-").map(Number);
+    return new Date(parts[0], parts[1] - 1, parts[2]).getDay();
+}
+
+function hhmm(t) {
+    if (!t) return "—";
+    return String(t).slice(0, 5);
+}
+
+function timeToMinutes(t) {
+    const parts = hhmm(t).split(":").map(Number);
+    return parts[0] * 60 + parts[1];
+}
+
+function minutesToTime(m) {
+    const h = String(Math.floor(m / 60)).padStart(2, "0");
+    const min = String(m % 60).padStart(2, "0");
+    return h + ":" + min;
+}
+
 function addRow(tbody, cells, actions) {
     const tr = document.createElement("tr");
     cells.forEach(function (cell) {
@@ -106,6 +135,47 @@ function wirePasswordToggle(btnId, inputId) {
 
 wirePasswordToggle("toggle-login-pass", "login-password");
 wirePasswordToggle("toggle-su-pass", "su-password");
+
+/* ---------------- WELCOME EMAIL (EmailJS) ---------------- */
+
+async function sendWelcomeEmail(toEmail, payload, regData) {
+    if (!EMAILJS_PUBLIC_KEY || !EMAILJS_SERVICE_ID || !EMAILJS_TEMPLATE_ID) return;
+    if (!window.emailjs) return;
+    if (payload.p_role !== "patient" && payload.p_role !== "doctor") return;
+
+    let detailsText = "";
+    if (payload.p_role === "patient") {
+        const b = Number(payload.p_weight) / (Number(payload.p_height) * Number(payload.p_height));
+        detailsText =
+            "Role: Patient\n" +
+            "Patient ID: " + (regData && regData.id ? regData.id : "Assigned") + "\n" +
+            "Full Name: " + payload.p_name + "\n" +
+            "Age: " + payload.p_age + " years\n" +
+            "Weight: " + payload.p_weight + " Kg\n" +
+            "Height: " + payload.p_height + " m\n" +
+            "BMI: " + b.toFixed(1) + " (" + category(b) + ")";
+    } else {
+        detailsText =
+            "Role: Doctor\n" +
+            "Doctor ID: " + (regData && regData.id ? regData.id : "Assigned") + "\n" +
+            "Full Name: Dr. " + payload.p_name + "\n" +
+            "Age: " + payload.p_age + " years\n" +
+            "Specialty: " + payload.p_specialty;
+    }
+
+    try {
+        window.emailjs.init({ publicKey: EMAILJS_PUBLIC_KEY });
+        await window.emailjs.send(EMAILJS_SERVICE_ID, EMAILJS_TEMPLATE_ID, {
+            to_email: toEmail,
+            user_name: payload.p_name,
+            user_role: payload.p_role === "doctor" ? "Doctor" : "Patient",
+            user_id: regData && regData.id ? regData.id : "",
+            user_details: detailsText
+        });
+    } catch (err) {
+        console.warn("Welcome email skipped:", err);
+    }
+}
 
 /* ---------------- AUTH TABS & ROLE PICKERS ---------------- */
 
@@ -227,10 +297,14 @@ document.getElementById("signup-form").addEventListener("submit", async function
 
     isSigningUp = true;
     const { data, error } = await db.auth.signUp({
-    email: email,
-    password: password,
-    options: { emailRedirectTo: window.location.origin + window.location.pathname }
-});
+        email: email,
+        password: password,
+        options: {
+            emailRedirectTo: window.location.origin + window.location.pathname,
+            data: { pending_reg: payload }
+        }
+    });
+
     if (error) {
         isSigningUp = false;
         return showError("auth-error", error.message);
@@ -238,7 +312,8 @@ document.getElementById("signup-form").addEventListener("submit", async function
 
     if (!data.session) {
         isSigningUp = false;
-        showInfo("auth-info", "Account created! Confirm your email, then log in to finish your profile.");
+        document.getElementById("signup-form").reset();
+        showInfo("auth-info", "Account created! Confirm your email, then log in — your details are already saved.");
         return;
     }
 
@@ -249,6 +324,8 @@ document.getElementById("signup-form").addEventListener("submit", async function
         return showError("setup-error", reg.error.message + " Try again below.");
     }
 
+    await db.auth.updateUser({ data: { pending_reg: null } });
+    await sendWelcomeEmail(email, payload, reg.data);
     document.getElementById("signup-form").reset();
     await loadUserPortal(data.session.user);
 });
@@ -263,13 +340,145 @@ document.getElementById("setup-form").addEventListener("submit", async function 
     const reg = await db.rpc("complete_registration", payload);
     if (reg.error) return showError("setup-error", reg.error.message);
 
+    await db.auth.updateUser({ data: { pending_reg: null } });
+    await sendWelcomeEmail(currentUser.email, payload, reg.data);
     document.getElementById("setup-form").reset();
     await loadUserPortal(currentUser);
 });
 
-document.getElementById("logout-btn").addEventListener("click", async function () {
+/* ---------------- TOP-LEFT PROFILE MODAL ---------------- */
+
+function openProfileModal() {
+    if (!currentProfile || !currentUser) return;
+    showError("pm-error", "");
+    showInfo("pm-info", "");
+    document.getElementById("pm-view").hidden = false;
+    document.getElementById("pm-edit-form").hidden = true;
+
+    const details = document.getElementById("pm-details");
+    details.innerHTML = "";
+
+    const rows = [
+        ["Role", currentProfile.role.charAt(0).toUpperCase() + currentProfile.role.slice(1)],
+        ["Full Name", currentProfile.full_name],
+        ["Email", currentUser.email]
+    ];
+
+    if (currentProfile.role === "patient" && myPatient) {
+        const b = bmi(myPatient);
+        rows.push(["Patient ID", myPatient.id]);
+        rows.push(["Age", myPatient.age + " yrs"]);
+        rows.push(["Weight", myPatient.weight + " Kg"]);
+        rows.push(["Height", myPatient.height + " m"]);
+        rows.push(["BMI", b.toFixed(1) + " (" + category(b) + ")"]);
+    } else if (currentProfile.role === "doctor" && myDoctor) {
+        rows.push(["Doctor ID", myDoctor.id]);
+        rows.push(["Age", myDoctor.age + " yrs"]);
+        rows.push(["Specialty", myDoctor.specialty]);
+    }
+
+    rows.forEach(function (pair) {
+        const card = document.createElement("div");
+        card.className = "report-stat";
+        const label = document.createElement("small");
+        label.textContent = pair[0];
+        const val = document.createElement("strong");
+        val.textContent = pair[1];
+        card.appendChild(label);
+        card.appendChild(val);
+        details.appendChild(card);
+    });
+
+    document.getElementById("profile-modal").hidden = false;
+}
+
+function closeProfileModal() {
+    document.getElementById("profile-modal").hidden = true;
+}
+
+document.getElementById("profile-btn").addEventListener("click", openProfileModal);
+document.getElementById("pm-close").addEventListener("click", closeProfileModal);
+
+document.getElementById("pm-edit-btn").addEventListener("click", function () {
+    showError("pm-error", "");
+    showInfo("pm-info", "");
+    document.getElementById("pm-view").hidden = true;
+    document.getElementById("pm-edit-form").hidden = false;
+
+    document.getElementById("pm-name").value = currentProfile.full_name || "";
+    const isP = currentProfile.role === "patient";
+    const isD = currentProfile.role === "doctor";
+    document.getElementById("pm-patient-fields").hidden = !isP;
+    document.getElementById("pm-doctor-fields").hidden = !isD;
+
+    if (isP && myPatient) {
+        document.getElementById("pm-p-age").value = myPatient.age;
+        document.getElementById("pm-p-weight").value = myPatient.weight;
+        document.getElementById("pm-p-height").value = myPatient.height;
+    } else if (isD && myDoctor) {
+        document.getElementById("pm-d-age").value = myDoctor.age;
+        document.getElementById("pm-d-spec").value = myDoctor.specialty;
+    }
+});
+
+document.getElementById("pm-cancel-edit").addEventListener("click", function () {
+    document.getElementById("pm-edit-form").hidden = true;
+    document.getElementById("pm-view").hidden = false;
+    showError("pm-error", "");
+});
+
+document.getElementById("pm-edit-form").addEventListener("submit", async function (e) {
+    e.preventDefault();
+    showError("pm-error", "");
+    showInfo("pm-info", "");
+
+    const name = document.getElementById("pm-name").value.trim();
+    if (!name) return showError("pm-error", "Name cannot be empty.");
+
+    let rpcArgs = { p_name: name, p_age: null, p_weight: null, p_height: null, p_specialty: null };
+
+    if (currentProfile.role === "patient") {
+        const age = num("pm-p-age");
+        const weight = num("pm-p-weight");
+        const height = num("pm-p-height");
+        if (!Number.isInteger(age) || age < 0 || age > 120) return showError("pm-error", "Age must be a whole number between 0 and 120.");
+        if (!(weight >= 2 && weight <= 400)) return showError("pm-error", "Weight must be between 2 and 400 Kg.");
+        if (!(height >= 0.4 && height <= 2.5)) return showError("pm-error", "Height must be between 0.4 and 2.5 meters.");
+        rpcArgs.p_age = age;
+        rpcArgs.p_weight = weight;
+        rpcArgs.p_height = height;
+    } else if (currentProfile.role === "doctor") {
+        const age = num("pm-d-age");
+        const spec = document.getElementById("pm-d-spec").value.trim();
+        if (!Number.isInteger(age) || age < 0 || age > 120) return showError("pm-error", "Age must be a whole number between 0 and 120.");
+        if (!spec) return showError("pm-error", "Specialty cannot be empty.");
+        rpcArgs.p_age = age;
+        rpcArgs.p_specialty = spec;
+    }
+
+    const { error } = await db.rpc("update_my_profile", rpcArgs);
+    if (error) return showError("pm-error", error.message);
+
+    currentProfile.full_name = name;
+    updateProfileButton();
+    await loadAll();
+    openProfileModal();
+    showInfo("pm-info", "Information updated!");
+});
+
+document.getElementById("pm-logout-btn").addEventListener("click", async function () {
+    closeProfileModal();
     await db.auth.signOut();
 });
+
+function updateProfileButton() {
+    if (!currentProfile) return;
+    const btn = document.getElementById("profile-btn");
+    const name = currentProfile.full_name || currentUser.email || "User";
+    document.getElementById("profile-avatar").textContent = name.charAt(0).toUpperCase();
+    document.getElementById("profile-btn-name").textContent = name;
+    btn.hidden = false;
+}
 
 /* ---------------- NAVIGATION & SESSION ---------------- */
 
@@ -316,24 +525,24 @@ async function handleSession(session) {
         patients = [];
         doctors = [];
         appointments = [];
+        availability = [];
         stopEditPatient();
         stopEditDoctor();
         stopEditAppt();
         closeHealthReport();
         closeDoctorReport();
+        closeProfileModal();
         document.getElementById("auth-section").hidden = false;
         document.getElementById("setup-section").hidden = true;
         document.getElementById("app-nav").hidden = true;
         document.getElementById("app-main").hidden = true;
-        document.getElementById("user-bar").hidden = true;
+        document.getElementById("profile-btn").hidden = true;
         document.getElementById("role-badge").hidden = true;
         document.body.dataset.bg = "auth";
         return;
     }
 
     document.getElementById("auth-section").hidden = true;
-    document.getElementById("user-bar").hidden = false;
-    document.getElementById("user-email").textContent = currentUser.email;
 
     if (userChanged || !currentProfile) {
         await loadUserPortal(currentUser);
@@ -342,7 +551,7 @@ async function handleSession(session) {
 
 async function loadUserPortal(user) {
     currentUser = user;
-    const { data: profile, error } = await db
+    let { data: profile, error } = await db
         .from("profiles")
         .select("*")
         .eq("user_id", user.id)
@@ -353,11 +562,26 @@ async function loadUserPortal(user) {
         return;
     }
 
+    // Auto-complete registration from saved signup metadata (fixes being asked twice!)
+    if (!profile && user.user_metadata && user.user_metadata.pending_reg) {
+        const pending = user.user_metadata.pending_reg;
+        const reg = await db.rpc("complete_registration", pending);
+        if (!reg.error) {
+            await db.auth.updateUser({ data: { pending_reg: null } });
+            await sendWelcomeEmail(user.email, pending, reg.data);
+            const refetch = await db.from("profiles").select("*").eq("user_id", user.id).maybeSingle();
+            profile = refetch.data;
+        } else {
+            showError("setup-error", reg.error.message + " Please check your details below.");
+        }
+    }
+
     if (!profile) {
         currentProfile = null;
         document.getElementById("setup-section").hidden = false;
         document.getElementById("app-nav").hidden = true;
         document.getElementById("app-main").hidden = true;
+        document.getElementById("profile-btn").hidden = true;
         document.getElementById("role-badge").hidden = true;
         document.body.dataset.bg = "auth";
         return;
@@ -369,6 +593,7 @@ async function loadUserPortal(user) {
     document.getElementById("app-nav").hidden = false;
     document.getElementById("app-main").hidden = false;
 
+    updateProfileButton();
     const badge = document.getElementById("role-badge");
     badge.textContent = profile.role;
     badge.hidden = false;
@@ -376,12 +601,13 @@ async function loadUserPortal(user) {
     if (profile.role === "patient") {
         buildNav([
             { label: "My Health", sectionId: "patient-profile-sec", bg: "patients" },
-            { label: "My Appointments", sectionId: "patient-appts-sec", bg: "appointments" }
+            { label: "Appointments", sectionId: "patient-appts-sec", bg: "appointments" }
         ]);
     } else if (profile.role === "doctor") {
         buildNav([
             { label: "My Appointments", sectionId: "doctor-appts-sec", bg: "appointments" },
-            { label: "My Patients", sectionId: "doctor-patients-sec", bg: "doctors" }
+            { label: "My Patients", sectionId: "doctor-patients-sec", bg: "doctors" },
+            { label: "My Availability", sectionId: "doctor-avail-sec", bg: "doctors" }
         ]);
     } else {
         buildNav([
@@ -397,15 +623,17 @@ async function loadUserPortal(user) {
 async function loadAll() {
     if (!currentProfile) return;
 
-    const [pRes, dRes, aRes] = await Promise.all([
+    const [pRes, dRes, aRes, avRes] = await Promise.all([
         db.from("patients").select("*").order("created_at", { ascending: true }),
         db.from("doctors").select("*").order("created_at", { ascending: true }),
-        db.from("appointments").select("*").order("id", { ascending: true })
+        db.from("appointments").select("*").order("date", { ascending: true }).order("appt_time", { ascending: true }),
+        db.from("doctor_availability").select("*").order("day_of_week", { ascending: true })
     ]);
 
     patients = pRes.data || [];
     doctors = dRes.data || [];
     appointments = aRes.data || [];
+    availability = avRes.data || [];
 
     if (currentProfile.role === "patient") {
         myPatient = patients.find(function (p) { return p.auth_user_id === currentUser.id; }) || patients[0] || null;
@@ -413,6 +641,7 @@ async function loadAll() {
     } else if (currentProfile.role === "doctor") {
         myDoctor = doctors.find(function (d) { return d.auth_user_id === currentUser.id; }) || null;
         renderDoctorPortal();
+        renderDoctorAvailability();
     } else {
         if (pRes.error) showError("p-error", pRes.error.message);
         if (dRes.error) showError("d-error", dRes.error.message);
@@ -421,6 +650,72 @@ async function loadAll() {
         renderDoctors();
         fillSelects();
         renderAppointments();
+        await refreshTimeSlots("a-doctor", "a-date", "a-time", "a-avail-hint", editingAppt ? hhmm(editingAppt.appt_time) : null);
+    }
+}
+
+/* ---------------- AVAILABLE TIME SLOTS HELPER ---------------- */
+
+function doctorScheduleSummary(doctorId) {
+    const slots = availability.filter(function (av) { return av.doctor_id === doctorId; });
+    if (slots.length === 0) return "No available hours set yet.";
+    return slots.map(function (av) {
+        return DAY_NAMES[av.day_of_week].slice(0, 3) + " " + hhmm(av.start_time) + "-" + hhmm(av.end_time);
+    }).join(", ");
+}
+
+async function refreshTimeSlots(docSelectId, dateInputId, timeSelectId, hintId, keepTime) {
+    const docId = document.getElementById(docSelectId).value;
+    const dateVal = document.getElementById(dateInputId).value;
+    const timeSelect = document.getElementById(timeSelectId);
+    const hint = document.getElementById(hintId);
+
+    timeSelect.innerHTML = "";
+    if (!docId) {
+        hint.textContent = "Add a doctor first.";
+        timeSelect.add(new Option("No times", ""));
+        return;
+    }
+
+    const summary = doctorScheduleSummary(docId);
+    hint.textContent = "Doctor's hours: " + summary;
+
+    if (!validDate(dateVal)) {
+        timeSelect.add(new Option("Pick a date first", ""));
+        return;
+    }
+
+    const dow = dayOfWeekFromDate(dateVal);
+    const dayAvail = availability.find(function (av) {
+        return av.doctor_id === docId && av.day_of_week === dow;
+    });
+
+    if (!dayAvail) {
+        timeSelect.add(new Option("Doctor unavailable on " + DAY_NAMES[dow], ""));
+        return;
+    }
+
+    const bookedRes = await db.rpc("get_booked_slots", { p_doctor_id: docId, p_date: dateVal });
+    const booked = (bookedRes.data || []).map(function (r) { return hhmm(r.appt_time); });
+
+    const startMin = timeToMinutes(dayAvail.start_time);
+    const endMin = timeToMinutes(dayAvail.end_time);
+    const step = Number(dayAvail.slot_minutes) || 30;
+
+    let added = 0;
+    for (let m = startMin; m < endMin; m += step) {
+        const label = minutesToTime(m);
+        const isTaken = booked.includes(label) && label !== keepTime;
+        if (!isTaken) {
+            timeSelect.add(new Option(label, label));
+            added++;
+        }
+    }
+
+    if (added === 0) {
+        timeSelect.add(new Option("All slots booked for this day", ""));
+    } else if (keepTime) {
+        timeSelect.value = keepTime;
     }
 }
 
@@ -458,15 +753,19 @@ function renderPatientPortal() {
         grid.appendChild(card);
     });
 
-    document.getElementById("pp-name").value = myPatient.name;
-    document.getElementById("pp-age").value = myPatient.age;
-    document.getElementById("pp-weight").value = myPatient.weight;
-    document.getElementById("pp-height").value = myPatient.height;
+    const docSel = document.getElementById("pb-doctor");
+    const prevDoc = docSel.value;
+    docSel.innerHTML = "";
+    doctors.forEach(function (d) {
+        docSel.add(new Option("Dr. " + d.name + " (" + d.specialty + ")", d.id));
+    });
+    if (prevDoc && findById(doctors, prevDoc)) docSel.value = prevDoc;
+    refreshTimeSlots("pb-doctor", "pb-date", "pb-time", "pb-avail-hint", null);
 
     const body = document.getElementById("pp-appts-body");
     body.innerHTML = "";
     if (appointments.length === 0) {
-        addRow(body, ["—", "No appointments scheduled yet.", "", "", "", "", ""]);
+        addRow(body, ["—", "No appointments scheduled yet.", "", "", "", "", "", ""]);
     } else {
         appointments.forEach(function (a) {
             const doc = findById(doctors, a.doctor_id);
@@ -474,6 +773,7 @@ function renderPatientPortal() {
             addRow(body, [
                 "#" + a.id,
                 a.date,
+                hhmm(a.appt_time),
                 doc ? "Dr. " + doc.name : "?",
                 doc ? doc.specialty : "—",
                 a.reason,
@@ -488,33 +788,48 @@ document.getElementById("pp-quick-weight").addEventListener("click", function ()
     if (myPatient) updateWeight(myPatient);
 });
 
-document.getElementById("pp-edit-form").addEventListener("submit", async function (e) {
+document.getElementById("pb-doctor").addEventListener("change", function () {
+    refreshTimeSlots("pb-doctor", "pb-date", "pb-time", "pb-avail-hint", null);
+});
+
+document.getElementById("pb-date").addEventListener("change", function () {
+    refreshTimeSlots("pb-doctor", "pb-date", "pb-time", "pb-avail-hint", null);
+});
+
+document.getElementById("pp-book-form").addEventListener("submit", async function (e) {
     e.preventDefault();
     if (!myPatient) return;
-    showError("pp-error", "");
-    showInfo("pp-info", "");
+    showError("pb-error", "");
+    showInfo("pb-info", "");
 
-    const name = document.getElementById("pp-name").value.trim();
-    const age = num("pp-age");
-    const weight = num("pp-weight");
-    const height = num("pp-height");
+    const doctorId = document.getElementById("pb-doctor").value;
+    const date = document.getElementById("pb-date").value;
+    const apptTime = document.getElementById("pb-time").value;
+    const reason = document.getElementById("pb-reason").value.trim();
 
-    if (name === "") return showError("pp-error", "Name cannot be empty.");
-    if (!Number.isInteger(age) || age < 0 || age > 120) return showError("pp-error", "Age must be a whole number between 0 and 120.");
-    if (!(weight >= 2 && weight <= 400)) return showError("pp-error", "Weight must be between 2 and 400 Kg.");
-    if (!(height >= 0.4 && height <= 2.5)) return showError("pp-error", "Height must be between 0.4 and 2.5 meters.");
+    if (!doctorId) return showError("pb-error", "Please select a doctor.");
+    if (!validDate(date)) return showError("pb-error", "Please choose a valid date.");
+    if (!apptTime) return showError("pb-error", "Please choose an available time slot.");
+    if (!reason) return showError("pb-error", "Please enter a reason for the visit.");
 
-    const { error } = await db
-        .from("patients")
-        .update({ name: name, age: age, weight: weight, height: height })
-        .eq("id", myPatient.id);
+    const { error } = await db.from("appointments").insert({
+        patient_id: myPatient.id,
+        doctor_id: doctorId,
+        date: date,
+        appt_time: apptTime,
+        reason: reason,
+        status: "Scheduled",
+        report: "",
+        notes: ""
+    });
 
-    if (error) return showError("pp-error", error.message);
-    showInfo("pp-info", "Profile updated!");
+    if (error) return showError("pb-error", error.message);
+    document.getElementById("pp-book-form").reset();
+    showInfo("pb-info", "Appointment booked for " + date + " at " + apptTime + "!");
     await loadAll();
 });
 
-/* ---------------- DOCTOR PORTAL ---------------- */
+/* ---------------- DOCTOR PORTAL & AVAILABILITY ---------------- */
 
 document.querySelectorAll("#dp-filters button").forEach(function (btn) {
     btn.addEventListener("click", function () {
@@ -561,7 +876,7 @@ function renderDoctorPortal() {
     const body = document.getElementById("dp-appts-body");
     body.innerHTML = "";
     if (filtered.length === 0) {
-        addRow(body, ["—", "No appointments found.", "", "", "", "", "", "", ""]);
+        addRow(body, ["—", "No appointments found.", "", "", "", "", "", "", "", ""]);
     } else {
         filtered.forEach(function (a) {
             const p = findById(patients, a.patient_id);
@@ -573,6 +888,7 @@ function renderDoctorPortal() {
                 [
                     "#" + a.id,
                     a.date,
+                    hhmm(a.appt_time),
                     p ? p.name + " (" + p.id + ")" : a.patient_id,
                     vitals,
                     a.reason,
@@ -612,6 +928,61 @@ function renderDoctorPortal() {
         });
     }
 }
+
+function renderDoctorAvailability() {
+    if (!myDoctor) return;
+    const body = document.getElementById("av-body");
+    body.innerHTML = "";
+    const mine = availability.filter(function (av) { return av.doctor_id === myDoctor.id; });
+    if (mine.length === 0) {
+        addRow(body, ["No available days set yet.", "", "", "", ""]);
+        return;
+    }
+    mine.forEach(function (av) {
+        addRow(
+            body,
+            [DAY_NAMES[av.day_of_week], hhmm(av.start_time), hhmm(av.end_time), av.slot_minutes + " min"],
+            [
+                {
+                    label: "Delete",
+                    onClick: async function () {
+                        const { error } = await db.from("doctor_availability").delete().eq("id", av.id);
+                        if (error) return showError("av-error", error.message);
+                        showInfo("av-info", DAY_NAMES[av.day_of_week] + " removed.");
+                        await loadAll();
+                    }
+                }
+            ]
+        );
+    });
+}
+
+document.getElementById("avail-form").addEventListener("submit", async function (e) {
+    e.preventDefault();
+    if (!myDoctor) return;
+    showError("av-error", "");
+    showInfo("av-info", "");
+
+    const day = Number(document.getElementById("av-day").value);
+    const startTime = document.getElementById("av-start").value;
+    const endTime = document.getElementById("av-end").value;
+    const slotMin = Number(document.getElementById("av-slot").value);
+
+    if (!startTime || !endTime || timeToMinutes(endTime) <= timeToMinutes(startTime)) {
+        return showError("av-error", "End time must be after start time.");
+    }
+
+    const { error } = await db
+        .from("doctor_availability")
+        .upsert(
+            { doctor_id: myDoctor.id, day_of_week: day, start_time: startTime, end_time: endTime, slot_minutes: slotMin },
+            { onConflict: "doctor_id,day_of_week" }
+        );
+
+    if (error) return showError("av-error", error.message);
+    showInfo("av-info", "Saved " + DAY_NAMES[day] + " (" + startTime + " - " + endTime + ")!");
+    await loadAll();
+});
 
 /* ---------------- SHARED MODALS & WEIGHT UPDATE ---------------- */
 
@@ -691,7 +1062,7 @@ function openHealthReport(p, showNotes) {
 
             const top = document.createElement("div");
             const title = document.createElement("strong");
-            title.textContent = "#" + a.id + " · " + a.date + " · Dr. " + (doc ? doc.name : "?") + " ";
+            title.textContent = "#" + a.id + " · " + a.date + " " + hhmm(a.appt_time) + " · Dr. " + (doc ? doc.name : "?") + " ";
             const badge = document.createElement("span");
             const st = a.status || "Scheduled";
             badge.className = "badge " + (st === "Completed" ? "completed" : "scheduled");
@@ -739,7 +1110,7 @@ function openDoctorReport(a) {
     document.getElementById("dr-subtitle").textContent =
         (p ? p.name + " (" + p.id + ")" : a.patient_id) +
         " with Dr. " + (d ? d.name : a.doctor_id) +
-        " on " + a.date + " (" + a.reason + ")";
+        " on " + a.date + " at " + hhmm(a.appt_time) + " (" + a.reason + ")";
     document.getElementById("dr-status").value = "Completed";
     document.getElementById("dr-report").value = a.report || "";
     document.getElementById("dr-notes").value = a.notes || "";
@@ -873,7 +1244,7 @@ function renderDoctors() {
     doctors.forEach(function (d) {
         addRow(
             body,
-            [d.id, d.name, d.age, d.specialty],
+            [d.id, d.name, d.age, d.specialty, doctorScheduleSummary(d.id)],
             [
                 { label: "Edit", onClick: function () { startEditDoctor(d); } },
                 { label: "Delete", onClick: function () { deleteDoctor(d); } }
@@ -949,11 +1320,23 @@ document.getElementById("doctor-form").addEventListener("submit", async function
 function fillSelects() {
     const ps = document.getElementById("a-patient");
     const ds = document.getElementById("a-doctor");
+    const prevP = ps.value;
+    const prevD = ds.value;
     ps.innerHTML = "";
     ds.innerHTML = "";
     patients.forEach(function (p) { ps.add(new Option(p.name + " (" + p.id + ")", p.id)); });
     doctors.forEach(function (d) { ds.add(new Option("Dr. " + d.name + " (" + d.id + ")", d.id)); });
+    if (prevP && findById(patients, prevP)) ps.value = prevP;
+    if (prevD && findById(doctors, prevD)) ds.value = prevD;
 }
+
+document.getElementById("a-doctor").addEventListener("change", function () {
+    refreshTimeSlots("a-doctor", "a-date", "a-time", "a-avail-hint", editingAppt ? hhmm(editingAppt.appt_time) : null);
+});
+
+document.getElementById("a-date").addEventListener("change", function () {
+    refreshTimeSlots("a-doctor", "a-date", "a-time", "a-avail-hint", editingAppt ? hhmm(editingAppt.appt_time) : null);
+});
 
 let editingAppt = null;
 
@@ -970,6 +1353,7 @@ function renderAppointments() {
             [
                 "#" + a.id,
                 a.date,
+                hhmm(a.appt_time),
                 p ? p.name + " (" + p.id + ")" : a.patient_id,
                 d ? "Dr. " + d.name : a.doctor_id,
                 a.reason,
@@ -990,7 +1374,7 @@ function renderAppointments() {
     });
 }
 
-function startEditAppt(a) {
+async function startEditAppt(a) {
     editingAppt = a;
     document.getElementById("a-patient").value = a.patient_id;
     document.getElementById("a-doctor").value = a.doctor_id;
@@ -999,6 +1383,7 @@ function startEditAppt(a) {
     document.getElementById("a-status").value = a.status || "Scheduled";
     document.getElementById("a-report").value = a.report || "";
     document.getElementById("a-notes").value = a.notes || "";
+    await refreshTimeSlots("a-doctor", "a-date", "a-time", "a-avail-hint", hhmm(a.appt_time));
     document.querySelector("#appt-form button[type=submit]").textContent = "Save changes";
     document.getElementById("a-cancel").hidden = false;
     showError("a-error", "");
@@ -1027,6 +1412,7 @@ document.getElementById("appt-form").addEventListener("submit", async function (
     const patientId = document.getElementById("a-patient").value.trim();
     const doctorId = document.getElementById("a-doctor").value.trim();
     const date = document.getElementById("a-date").value;
+    const apptTime = document.getElementById("a-time").value;
     const reason = document.getElementById("a-reason").value.trim();
     const status = document.getElementById("a-status").value;
     const report = document.getElementById("a-report").value.trim();
@@ -1034,18 +1420,19 @@ document.getElementById("appt-form").addEventListener("submit", async function (
 
     if (patientId === "" || doctorId === "") return showError("a-error", "Add at least one patient and one doctor first.");
     if (!validDate(date)) return showError("a-error", "Please choose a valid date.");
+    if (!apptTime) return showError("a-error", "Please pick an available time slot (the doctor must set hours for this day).");
     if (reason === "") return showError("a-error", "Reason cannot be empty.");
 
     let result;
     if (editingAppt) {
         result = await db
             .from("appointments")
-            .update({ patient_id: patientId, doctor_id: doctorId, date: date, reason: reason, status: status, report: report, notes: notes })
+            .update({ patient_id: patientId, doctor_id: doctorId, date: date, appt_time: apptTime, reason: reason, status: status, report: report, notes: notes })
             .eq("id", editingAppt.id);
     } else {
         result = await db
             .from("appointments")
-            .insert({ patient_id: patientId, doctor_id: doctorId, date: date, reason: reason, status: status, report: report, notes: notes });
+            .insert({ patient_id: patientId, doctor_id: doctorId, date: date, appt_time: apptTime, reason: reason, status: status, report: report, notes: notes });
     }
 
     if (result.error) return showError("a-error", result.error.message);
