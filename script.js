@@ -24,6 +24,8 @@ let doctorFilter = "All";
 let signupRole = "patient";
 let setupRole = "patient";
 let isSigningUp = false;
+let selectedBookingDate = "";
+let selectedBookingTime = "";
 
 /* ---------------- HELPERS ---------------- */
 
@@ -92,6 +94,21 @@ function minutesToTime(m) {
     const h = String(Math.floor(m / 60)).padStart(2, "0");
     const min = String(m % 60).padStart(2, "0");
     return h + ":" + min;
+}
+
+function format12Hour(t) {
+    const parts = hhmm(t).split(":").map(Number);
+    if (parts.length < 2 || isNaN(parts[0])) return hhmm(t);
+    const suffix = parts[0] >= 12 ? "PM" : "AM";
+    const h12 = parts[0] % 12 === 0 ? 12 : parts[0] % 12;
+    return h12 + ":" + String(parts[1]).padStart(2, "0") + " " + suffix;
+}
+
+function toLocalIsoDate(d) {
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, "0");
+    const day = String(d.getDate()).padStart(2, "0");
+    return y + "-" + m + "-" + day;
 }
 
 function addRow(tbody, cells, actions) {
@@ -753,14 +770,14 @@ function renderPatientPortal() {
         grid.appendChild(card);
     });
 
-    const docSel = document.getElementById("pb-doctor");
+       const docSel = document.getElementById("pb-doctor");
     const prevDoc = docSel.value;
     docSel.innerHTML = "";
     doctors.forEach(function (d) {
         docSel.add(new Option("Dr. " + d.name + " (" + d.specialty + ")", d.id));
     });
     if (prevDoc && findById(doctors, prevDoc)) docSel.value = prevDoc;
-    refreshTimeSlots("pb-doctor", "pb-date", "pb-time", "pb-avail-hint", null);
+    renderPatientBookingDates();
 
     const body = document.getElementById("pp-appts-body");
     body.innerHTML = "";
@@ -773,7 +790,7 @@ function renderPatientPortal() {
             addRow(body, [
                 "#" + a.id,
                 a.date,
-                hhmm(a.appt_time),
+                format12Hour(a.appt_time),
                 doc ? "Dr. " + doc.name : "?",
                 doc ? doc.specialty : "—",
                 a.reason,
@@ -784,16 +801,141 @@ function renderPatientPortal() {
     }
 }
 
+function getUpcomingAvailableDates(doctorId, maxCount) {
+    const docAvail = availability.filter(function (av) { return av.doctor_id === doctorId; });
+    if (docAvail.length === 0) return [];
+
+    const results = [];
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    for (let i = 0; i < 60 && results.length < maxCount; i++) {
+        const d = new Date(today.getFullYear(), today.getMonth(), today.getDate() + i);
+        const match = docAvail.find(function (av) { return av.day_of_week === d.getDay(); });
+        if (match) {
+            results.push({
+                iso: toLocalIsoDate(d),
+                label: d.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" }),
+                hours: format12Hour(match.start_time) + " - " + format12Hour(match.end_time),
+                avail: match
+            });
+        }
+    }
+    return results;
+}
+
+function renderPatientBookingDates() {
+    const docId = document.getElementById("pb-doctor").value;
+    const datesBox = document.getElementById("pb-dates");
+    const timesBox = document.getElementById("pb-times");
+    datesBox.innerHTML = "";
+    timesBox.innerHTML = "";
+    selectedBookingTime = "";
+
+    if (!docId) {
+        selectedBookingDate = "";
+        datesBox.innerHTML = "<span class='muted'>No doctors available yet.</span>";
+        return;
+    }
+
+    const upcoming = getUpcomingAvailableDates(docId, 8);
+    if (upcoming.length === 0) {
+        selectedBookingDate = "";
+        datesBox.innerHTML = "<span class='muted'>This doctor has not set available hours yet.</span>";
+        timesBox.innerHTML = "<span class='muted'>No time slots available.</span>";
+        return;
+    }
+
+    if (!upcoming.some(function (u) { return u.iso === selectedBookingDate; })) {
+        selectedBookingDate = upcoming[0].iso;
+    }
+
+    upcoming.forEach(function (u) {
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "slot-btn" + (u.iso === selectedBookingDate ? " active" : "");
+
+        const title = document.createTextNode(u.label);
+        const sub = document.createElement("small");
+        sub.textContent = u.hours;
+        btn.appendChild(title);
+        btn.appendChild(sub);
+
+        btn.addEventListener("click", function () {
+            selectedBookingDate = u.iso;
+            selectedBookingTime = "";
+            datesBox.querySelectorAll("button").forEach(function (b) { b.classList.remove("active"); });
+            btn.classList.add("active");
+            renderPatientBookingTimes(docId, u.iso, u.avail);
+        });
+        datesBox.appendChild(btn);
+    });
+
+    const chosen = upcoming.find(function (u) { return u.iso === selectedBookingDate; }) || upcoming[0];
+    renderPatientBookingTimes(docId, chosen.iso, chosen.avail);
+}
+
+async function renderPatientBookingTimes(docId, dateIso, dayAvail) {
+    const timesBox = document.getElementById("pb-times");
+    timesBox.innerHTML = "<span class='muted'>Loading available times...</span>";
+    selectedBookingTime = "";
+
+    const bookedRes = await db.rpc("get_booked_slots", { p_doctor_id: docId, p_date: dateIso });
+    const booked = (bookedRes.data || []).map(function (r) { return hhmm(r.appt_time); });
+
+    const now = new Date();
+    const todayIso = toLocalIsoDate(now);
+    const nowMinutes = now.getHours() * 60 + now.getMinutes();
+
+    const startMin = timeToMinutes(dayAvail.start_time);
+    const endMin = timeToMinutes(dayAvail.end_time);
+    const step = Number(dayAvail.slot_minutes) || 30;
+
+    timesBox.innerHTML = "";
+    let openCount = 0;
+
+    for (let m = startMin; m < endMin; m += step) {
+        const val = minutesToTime(m);
+        const isTaken = booked.includes(val);
+        const isPast = dateIso === todayIso && m <= nowMinutes;
+
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "slot-btn";
+        btn.textContent = format12Hour(val);
+
+        if (isTaken || isPast) {
+            btn.disabled = true;
+            const sub = document.createElement("small");
+            sub.textContent = isTaken ? "Booked" : "Passed";
+            btn.appendChild(sub);
+        } else {
+            openCount++;
+            btn.addEventListener("click", function () {
+                selectedBookingTime = val;
+                timesBox.querySelectorAll("button").forEach(function (b) { b.classList.remove("active"); });
+                btn.classList.add("active");
+            });
+        }
+        timesBox.appendChild(btn);
+    }
+
+    if (openCount === 0) {
+        const msg = document.createElement("span");
+        msg.className = "muted";
+        msg.textContent = "All time slots are booked or passed for this day. Pick another day above.";
+        timesBox.appendChild(msg);
+    }
+}
+
 document.getElementById("pp-quick-weight").addEventListener("click", function () {
     if (myPatient) updateWeight(myPatient);
 });
 
 document.getElementById("pb-doctor").addEventListener("change", function () {
-    refreshTimeSlots("pb-doctor", "pb-date", "pb-time", "pb-avail-hint", null);
-});
-
-document.getElementById("pb-date").addEventListener("change", function () {
-    refreshTimeSlots("pb-doctor", "pb-date", "pb-time", "pb-avail-hint", null);
+    selectedBookingDate = "";
+    selectedBookingTime = "";
+    renderPatientBookingDates();
 });
 
 document.getElementById("pp-book-form").addEventListener("submit", async function (e) {
@@ -803,20 +945,21 @@ document.getElementById("pp-book-form").addEventListener("submit", async functio
     showInfo("pb-info", "");
 
     const doctorId = document.getElementById("pb-doctor").value;
-    const date = document.getElementById("pb-date").value;
-    const apptTime = document.getElementById("pb-time").value;
     const reason = document.getElementById("pb-reason").value.trim();
 
     if (!doctorId) return showError("pb-error", "Please select a doctor.");
-    if (!validDate(date)) return showError("pb-error", "Please choose a valid date.");
-    if (!apptTime) return showError("pb-error", "Please choose an available time slot.");
+    if (!selectedBookingDate) return showError("pb-error", "Please choose an available day.");
+    if (!selectedBookingTime) return showError("pb-error", "Please click an available time slot.");
     if (!reason) return showError("pb-error", "Please enter a reason for the visit.");
+
+    const bookedDate = selectedBookingDate;
+    const bookedTime = selectedBookingTime;
 
     const { error } = await db.from("appointments").insert({
         patient_id: myPatient.id,
         doctor_id: doctorId,
-        date: date,
-        appt_time: apptTime,
+        date: bookedDate,
+        appt_time: bookedTime,
         reason: reason,
         status: "Scheduled",
         report: "",
@@ -824,8 +967,9 @@ document.getElementById("pp-book-form").addEventListener("submit", async functio
     });
 
     if (error) return showError("pb-error", error.message);
-    document.getElementById("pp-book-form").reset();
-    showInfo("pb-info", "Appointment booked for " + date + " at " + apptTime + "!");
+    document.getElementById("pb-reason").value = "";
+    selectedBookingTime = "";
+    showInfo("pb-info", "Appointment booked for " + bookedDate + " at " + format12Hour(bookedTime) + "!");
     await loadAll();
 });
 
