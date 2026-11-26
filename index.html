@@ -136,17 +136,30 @@
             <div id="pp-stats" class="report-grid"></div>
         </section>
 
-        <section id="patient-appts-sec" hidden>
+                <section id="patient-appts-sec" hidden>
             <h2>Book an Appointment</h2>
-            <p class="muted">Choose a doctor and date to see their available hours &amp; minutes.</p>
-            <form id="pp-book-form">
-                <select id="pb-doctor"></select>
-                <input id="pb-date" type="date">
-                <select id="pb-time"></select>
-                <input id="pb-reason" placeholder="Reason for visit">
-                <button type="submit">Book appointment</button>
+            <p class="muted">Select a doctor, pick one of their upcoming available days, and click a time slot.</p>
+            <form id="pp-book-form" class="booking-box">
+                <div class="booking-step">
+                    <label class="field-label">1. Choose Doctor</label>
+                    <select id="pb-doctor"></select>
+                </div>
+
+                <div class="booking-step">
+                    <label class="field-label">2. Available Days</label>
+                    <div id="pb-dates" class="slot-grid"></div>
+                </div>
+
+                <div class="booking-step">
+                    <label class="field-label">3. Available Time Slots</label>
+                    <div id="pb-times" class="slot-grid time-grid"></div>
+                </div>
+
+                <div class="booking-step booking-submit">
+                    <input id="pb-reason" placeholder="Reason for visit (e.g. Checkup)">
+                    <button type="submit" id="pb-submit">Book appointment</button>
+                </div>
             </form>
-            <p id="pb-avail-hint" class="muted"></p>
             <p id="pb-error" class="error"></p>
             <p id="pb-info" class="info"></p>
 
