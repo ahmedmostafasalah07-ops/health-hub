@@ -136,7 +136,7 @@ function setupRolePicker(containerId, prefix, onChange) {
             onChange(role);
             document.getElementById(prefix + "-patient-fields").hidden = role !== "patient";
             document.getElementById(prefix + "-doctor-fields").hidden = role !== "doctor";
-            document.getElementById(prefix + "-receptionist-fields").hidden = role !== "receptionist";
+            document.getElementById(prefix + "-admin-fields").hidden = role !== "admin";
         });
     });
 }
@@ -184,16 +184,16 @@ function readRolePayload(prefix, role) {
         };
     }
 
-    const rCode = document.getElementById(prefix + "-r-code").value.trim();
-    if (!rCode) return { error: "Admin Access Code is required." };
+    const aCode = document.getElementById(prefix + "-a-code").value.trim();
+    if (!aCode) return { error: "Admin Access Code is required." };
     return {
-        p_role: "receptionist",
+        p_role: "admin",
         p_name: name,
         p_age: null,
         p_weight: null,
         p_height: null,
         p_specialty: null,
-        p_staff_code: rCode
+        p_staff_code: aCode
     };
 }
 
@@ -366,7 +366,7 @@ async function loadUserPortal(user) {
     document.getElementById("app-main").hidden = false;
 
     const badge = document.getElementById("role-badge");
-    badge.textContent = profile.role === "receptionist" ? "Admin" : pprofile.role;
+    badge.textContent = profile.role;
     badge.hidden = false;
 
     if (profile.role === "patient") {
@@ -773,7 +773,7 @@ document.getElementById("dr-form").addEventListener("submit", async function (e)
     await loadAll();
 });
 
-/* ---------------- RECEPTIONIST: PATIENTS ---------------- */
+/* ---------------- ADMIN: PATIENTS ---------------- */
 
 let editingPatient = null;
 
@@ -859,7 +859,7 @@ document.getElementById("patient-form").addEventListener("submit", async functio
     await loadAll();
 });
 
-/* ---------------- RECEPTIONIST: DOCTORS ---------------- */
+/* ---------------- ADMIN: DOCTORS ---------------- */
 
 let editingDoctor = null;
 
@@ -940,7 +940,7 @@ document.getElementById("doctor-form").addEventListener("submit", async function
     await loadAll();
 });
 
-/* ---------------- RECEPTIONIST: APPOINTMENTS ---------------- */
+/* ---------------- ADMIN: APPOINTMENTS ---------------- */
 
 function fillSelects() {
     const ps = document.getElementById("a-patient");
