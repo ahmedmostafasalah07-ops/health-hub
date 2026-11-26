@@ -325,12 +325,23 @@
                 <h2>My Profile</h2>
                 <button type="button" id="pm-close" class="cancel">Close</button>
             </div>
-            <div id="pm-view">
+                        <div id="pm-view">
                 <div id="pm-details" class="report-grid"></div>
+                <div id="pm-admin-switch" class="admin-switch-box" hidden>
+                    <label class="field-label">Switch Portal View (Admin)</label>
+                    <div class="role-picker" id="pm-role-btns">
+                        <button type="button" data-view="admin" class="active">Admin</button>
+                        <button type="button" data-view="patient">Patient</button>
+                        <button type="button" data-view="doctor">Doctor</button>
+                    </div>
+                    <select id="pm-impersonate-select" hidden></select>
+                    <button type="button" id="pm-apply-view" class="accent-btn" hidden>Switch View</button>
+                </div>
                 <div class="profile-actions">
                     <button type="button" id="pm-edit-btn" class="accent-btn">Edit Information</button>
                     <button type="button" id="pm-logout-btn" class="danger-btn">Log out</button>
                 </div>
+            </div>
             </div>
             <form id="pm-edit-form" class="modal-form" hidden>
                 <label class="field-label">Full Name</label>
