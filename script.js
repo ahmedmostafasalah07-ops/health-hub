@@ -736,7 +736,6 @@ function applyPortalView() {
         ]);
     }
 }
-}
 
 function scheduleLiveRefresh() {
     if (!currentProfile) return;
