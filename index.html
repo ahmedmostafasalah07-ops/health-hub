@@ -46,7 +46,7 @@
             <div class="role-picker" id="signup-roles">
                 <button type="button" data-role="patient" class="active">Patient</button>
                 <button type="button" data-role="doctor">Doctor</button>
-                <button type="button" data-role="receptionist">Receptionist</button>
+                <button type="button" data-role="admin">Admin</button>
             </div>
 
             <input id="su-email" type="email" placeholder="Email" required>
@@ -72,9 +72,9 @@
                 <input id="su-d-code" type="password" placeholder="Doctor Access Code">
             </div>
 
-            <!-- Receptionist-specific fields -->
-            <div id="su-receptionist-fields" class="stack-fields" hidden>
-                <input id="su-r-code" type="password" placeholder="Receptionist Access Code">
+            <!-- Admin-specific fields -->
+            <div id="su-admin-fields" class="stack-fields" hidden>
+                <input id="su-a-code" type="password" placeholder="Admin Access Code">
             </div>
 
             <button type="submit">Create account</button>
@@ -84,7 +84,7 @@
         <p id="auth-info" class="info"></p>
     </section>
 
-    <!-- COMPLETE PROFILE (for existing accounts without a role yet) -->
+    <!-- COMPLETE PROFILE (for existing accounts that don't have a role yet) -->
     <section id="setup-section" class="auth-card" hidden>
         <h2>Complete Your Profile</h2>
         <p class="muted">Select your role to finish setting up your account:</p>
@@ -92,7 +92,7 @@
             <div class="role-picker" id="setup-roles">
                 <button type="button" data-role="patient" class="active">Patient</button>
                 <button type="button" data-role="doctor">Doctor</button>
-                <button type="button" data-role="receptionist">Admin</button>
+                <button type="button" data-role="admin">Admin</button>
             </div>
             <input id="st-name" placeholder="Full Name" required>
 
@@ -109,8 +109,8 @@
                 <input id="st-d-code" type="password" placeholder="Doctor Access Code">
             </div>
 
-            <div id="st-receptionist-fields" class="stack-fields" hidden>
-                <input id="st-r-code" type="password" placeholder="Admin Access Code">
+            <div id="st-admin-fields" class="stack-fields" hidden>
+                <input id="st-a-code" type="password" placeholder="Admin Access Code">
             </div>
 
             <button type="submit">Save &amp; Continue</button>
@@ -145,7 +145,7 @@
 
         <section id="patient-appts-sec" hidden>
             <h2>My Appointments &amp; Doctor Reports</h2>
-            <p class="muted">Appointments are scheduled by the clinic admin After each visit, your doctor's report appears here.</p>
+            <p class="muted">Appointments are scheduled by the clinic admin. After each visit, your doctor's report appears here.</p>
             <div class="table-wrap">
                 <table>
                     <thead><tr><th>#</th><th>Date</th><th>Doctor</th><th>Specialty</th><th>Reason</th><th>Status</th><th>Doctor's Report</th></tr></thead>
@@ -188,7 +188,7 @@
             </div>
         </section>
 
-        <!-- ========== RECEPTIONIST PORTAL ========== -->
+        <!-- ========== ADMIN PORTAL ========== -->
         <section id="patients" hidden>
             <h2>Patients (Admin)</h2>
             <form id="patient-form">
