@@ -1,6 +1,6 @@
 :root {
     --bg: #0B0D12;
-    --card: rgba(16, 20, 28, 0.84);
+    --card: rgba(16, 20, 28, 0.90);
     --text: #F2F5F9;
     --muted: #A1AEBE;
     --line: rgba(255, 255, 255, 0.12);
@@ -51,7 +51,7 @@ body[data-bg="doctors"]::before {
 body[data-bg="appointments"]::before {
     background-image:
         linear-gradient(135deg, rgba(11, 13, 18, 0.82), rgba(36, 15, 22, 0.76)),
-        url("https://images.unsplash.com/photo-1506784983877-45594efa4cbe?auto=format&fit=crop&w=1600&q=80");
+        url("https://images.unsplash.com/photo-1506784983877-45594efa4cbe?auto=format&fit=crop&w=1200&q=70");
 }
 
 header, main { max-width: 1140px; margin: 0 auto; }
@@ -145,7 +145,7 @@ section {
     border: 1px solid var(--line);
     border-radius: 16px;
     padding: 22px;
-    backdrop-filter: blur(14px);
+    backdrop-filter: blur(4px);
     box-shadow: 0 12px 32px rgba(0, 0, 0, 0.35);
 }
 
