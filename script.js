@@ -6,7 +6,21 @@ const EMAILJS_PUBLIC_KEY = "";
 const EMAILJS_SERVICE_ID = "";
 const EMAILJS_TEMPLATE_ID = "";
 
-const db = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+let tabId = sessionStorage.getItem("hh_tab_id");
+if (!tabId) {
+    tabId = "tab_" + Math.random().toString(36).slice(2) + "_" + Date.now();
+    sessionStorage.setItem("hh_tab_id", tabId);
+}
+
+const db = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
+    auth: {
+        storage: window.sessionStorage,
+        storageKey: "healthhub-auth-" + tabId,
+        persistSession: true,
+        autoRefreshToken: true,
+        detectSessionInUrl: true
+    }
+});
 
 const DAY_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 
