@@ -40,6 +40,10 @@ let setupRole = "patient";
 let isSigningUp = false;
 let selectedBookingDate = "";
 let selectedBookingTime = "";
+let realtimeChannel = null;
+let syncInterval = null;
+let syncTimer = null;
+let isLoadingData = false;
 
 /* ---------------- HELPERS ---------------- */
 
@@ -560,6 +564,7 @@ async function handleSession(session) {
         stopEditPatient();
         stopEditDoctor();
         stopEditAppt();
+        stopLiveSync();
         closeHealthReport();
         closeDoctorReport();
         closeProfileModal();
@@ -648,43 +653,96 @@ async function loadUserPortal(user) {
         ]);
     }
 
-    await loadAll();
+        await loadAll();
+    startLiveSync();
 }
 
-async function loadAll() {
+function scheduleLiveRefresh() {
+    if (!currentProfile) return;
+    clearTimeout(syncTimer);
+    syncTimer = setTimeout(function () {
+        loadAll(true);
+    }, 300);
+}
+
+function startLiveSync() {
+    stopLiveSync();
     if (!currentProfile) return;
 
-    const [pRes, dRes, aRes, avRes] = await Promise.all([
-        db.from("patients").select("*").order("created_at", { ascending: true }),
-        db.from("doctors").select("*").order("created_at", { ascending: true }),
-        db.from("appointments").select("*").order("date", { ascending: true }).order("appt_time", { ascending: true }),
-        db.from("doctor_availability").select("*").order("day_of_week", { ascending: true })
-    ]);
+    realtimeChannel = db
+        .channel("healthhub-live-" + tabId)
+        .on("postgres_changes", { event: "*", schema: "public", table: "patients" }, scheduleLiveRefresh)
+        .on("postgres_changes", { event: "*", schema: "public", table: "doctors" }, scheduleLiveRefresh)
+        .on("postgres_changes", { event: "*", schema: "public", table: "appointments" }, scheduleLiveRefresh)
+        .on("postgres_changes", { event: "*", schema: "public", table: "doctor_availability" }, scheduleLiveRefresh)
+        .subscribe();
 
-    patients = pRes.data || [];
-    doctors = dRes.data || [];
-    appointments = aRes.data || [];
-    availability = avRes.data || [];
+    // Backup auto-sync every 8 seconds so all accounts always stay up to date
+    syncInterval = setInterval(function () {
+        if (!document.hidden && currentProfile) {
+            loadAll(true);
+        }
+    }, 8000);
+}
 
-    if (currentProfile.role === "patient") {
-        myPatient = patients.find(function (p) { return p.auth_user_id === currentUser.id; }) || patients[0] || null;
-        renderPatientPortal();
-    } else if (currentProfile.role === "doctor") {
-        myDoctor = doctors.find(function (d) { return d.auth_user_id === currentUser.id; }) || null;
-        renderDoctorPortal();
-        renderDoctorAvailability();
-    } else {
-        if (pRes.error) showError("p-error", pRes.error.message);
-        if (dRes.error) showError("d-error", dRes.error.message);
-        if (aRes.error) showError("a-error", aRes.error.message);
-        renderPatients();
-        renderDoctors();
-        fillSelects();
-        renderAppointments();
-        await refreshTimeSlots("a-doctor", "a-date", "a-time", "a-avail-hint", editingAppt ? hhmm(editingAppt.appt_time) : null);
+function stopLiveSync() {
+    clearTimeout(syncTimer);
+    if (syncInterval) {
+        clearInterval(syncInterval);
+        syncInterval = null;
+    }
+    if (realtimeChannel) {
+        db.removeChannel(realtimeChannel);
+        realtimeChannel = null;
     }
 }
 
+document.addEventListener("visibilitychange", function () {
+    if (!document.hidden && currentProfile) {
+        loadAll(true);
+    }
+});
+
+async function loadAll(isSilent) {
+    if (!currentProfile || isLoadingData) return;
+    isLoadingData = true;
+
+    try {
+        const [pRes, dRes, aRes, avRes] = await Promise.all([
+            db.from("patients").select("*").order("created_at", { ascending: true }),
+            db.from("doctors").select("*").order("created_at", { ascending: true }),
+            db.from("appointments").select("*").order("date", { ascending: true }).order("appt_time", { ascending: true }),
+            db.from("doctor_availability").select("*").order("day_of_week", { ascending: true })
+        ]);
+
+        patients = pRes.data || [];
+        doctors = dRes.data || [];
+        appointments = aRes.data || [];
+        availability = avRes.data || [];
+
+        if (currentProfile.role === "patient") {
+            myPatient = patients.find(function (p) { return p.auth_user_id === currentUser.id; }) || patients[0] || null;
+            renderPatientPortal(!!isSilent);
+        } else if (currentProfile.role === "doctor") {
+            myDoctor = doctors.find(function (d) { return d.auth_user_id === currentUser.id; }) || null;
+            renderDoctorPortal();
+            renderDoctorAvailability();
+        } else {
+            if (pRes.error) showError("p-error", pRes.error.message);
+            if (dRes.error) showError("d-error", dRes.error.message);
+            if (aRes.error) showError("a-error", aRes.error.message);
+            renderPatients();
+            renderDoctors();
+            if (!editingAppt) {
+                fillSelects();
+                await refreshTimeSlots("a-doctor", "a-date", "a-time", "a-avail-hint", null);
+            }
+            renderAppointments();
+        }
+    } finally {
+        isLoadingData = false;
+    }
+}
 /* ---------------- AVAILABLE TIME SLOTS HELPER ---------------- */
 
 function doctorScheduleSummary(doctorId) {
@@ -752,7 +810,7 @@ async function refreshTimeSlots(docSelectId, dateInputId, timeSelectId, hintId, 
 
 /* ---------------- PATIENT PORTAL ---------------- */
 
-function renderPatientPortal() {
+function renderPatientPortal(keepSelection) {
     if (!myPatient) return;
     const b = bmi(myPatient);
     const cat = category(b);
@@ -784,14 +842,14 @@ function renderPatientPortal() {
         grid.appendChild(card);
     });
 
-       const docSel = document.getElementById("pb-doctor");
+    const docSel = document.getElementById("pb-doctor");
     const prevDoc = docSel.value;
     docSel.innerHTML = "";
     doctors.forEach(function (d) {
         docSel.add(new Option("Dr. " + d.name + " (" + d.specialty + ")", d.id));
     });
     if (prevDoc && findById(doctors, prevDoc)) docSel.value = prevDoc;
-    renderPatientBookingDates();
+    renderPatientBookingDates(!!keepSelection);
 
     const body = document.getElementById("pp-appts-body");
     body.innerHTML = "";
@@ -807,7 +865,7 @@ function renderPatientPortal() {
                 format12Hour(a.appt_time),
                 doc ? "Dr. " + doc.name : "?",
                 doc ? doc.specialty : "—",
-                a.reason,
+                a.reason || "—",
                 { badge: st === "Completed" ? "completed" : "scheduled", text: st },
                 a.report ? a.report : "No report yet"
             ]);
@@ -838,16 +896,19 @@ function getUpcomingAvailableDates(doctorId, maxCount) {
     return results;
 }
 
-function renderPatientBookingDates() {
+function renderPatientBookingDates(keepSelection) {
     const docId = document.getElementById("pb-doctor").value;
     const datesBox = document.getElementById("pb-dates");
     const timesBox = document.getElementById("pb-times");
     datesBox.innerHTML = "";
-    timesBox.innerHTML = "";
-    selectedBookingTime = "";
+    if (!keepSelection) {
+        timesBox.innerHTML = "";
+        selectedBookingTime = "";
+    }
 
     if (!docId) {
         selectedBookingDate = "";
+        selectedBookingTime = "";
         datesBox.innerHTML = "<span class='muted'>No doctors available yet.</span>";
         return;
     }
@@ -855,6 +916,7 @@ function renderPatientBookingDates() {
     const upcoming = getUpcomingAvailableDates(docId, 8);
     if (upcoming.length === 0) {
         selectedBookingDate = "";
+        selectedBookingTime = "";
         datesBox.innerHTML = "<span class='muted'>This doctor has not set available hours yet.</span>";
         timesBox.innerHTML = "<span class='muted'>No time slots available.</span>";
         return;
@@ -862,6 +924,7 @@ function renderPatientBookingDates() {
 
     if (!upcoming.some(function (u) { return u.iso === selectedBookingDate; })) {
         selectedBookingDate = upcoming[0].iso;
+        selectedBookingTime = "";
     }
 
     upcoming.forEach(function (u) {
@@ -880,19 +943,22 @@ function renderPatientBookingDates() {
             selectedBookingTime = "";
             datesBox.querySelectorAll("button").forEach(function (b) { b.classList.remove("active"); });
             btn.classList.add("active");
-            renderPatientBookingTimes(docId, u.iso, u.avail);
+            renderPatientBookingTimes(docId, u.iso, u.avail, false);
         });
         datesBox.appendChild(btn);
     });
 
     const chosen = upcoming.find(function (u) { return u.iso === selectedBookingDate; }) || upcoming[0];
-    renderPatientBookingTimes(docId, chosen.iso, chosen.avail);
+    renderPatientBookingTimes(docId, chosen.iso, chosen.avail, !!keepSelection);
 }
 
-async function renderPatientBookingTimes(docId, dateIso, dayAvail) {
+async function renderPatientBookingTimes(docId, dateIso, dayAvail, keepSelection) {
     const timesBox = document.getElementById("pb-times");
-    timesBox.innerHTML = "<span class='muted'>Loading available times...</span>";
-    selectedBookingTime = "";
+    const prevSelected = keepSelection ? selectedBookingTime : "";
+    if (!keepSelection) {
+        timesBox.innerHTML = "<span class='muted'>Loading available times...</span>";
+        selectedBookingTime = "";
+    }
 
     const bookedRes = await db.rpc("get_booked_slots", { p_doctor_id: docId, p_date: dateIso });
     const booked = (bookedRes.data || []).map(function (r) { return hhmm(r.appt_time); });
@@ -907,32 +973,29 @@ async function renderPatientBookingTimes(docId, dateIso, dayAvail) {
 
     timesBox.innerHTML = "";
     let openCount = 0;
+    let stillValid = false;
 
     for (let m = startMin; m < endMin; m += step) {
         const val = minutesToTime(m);
         const isTaken = booked.includes(val);
         const isPast = dateIso === todayIso && m <= nowMinutes;
+        if (isTaken || isPast) continue;
 
+        openCount++;
         const btn = document.createElement("button");
         btn.type = "button";
-        btn.className = "slot-btn";
+        btn.className = "slot-btn" + (val === prevSelected ? " active" : "");
+        if (val === prevSelected) stillValid = true;
         btn.textContent = format12Hour(val);
-
-        if (isTaken || isPast) {
-            btn.disabled = true;
-            const sub = document.createElement("small");
-            sub.textContent = isTaken ? "Booked" : "Passed";
-            btn.appendChild(sub);
-        } else {
-            openCount++;
-            btn.addEventListener("click", function () {
-                selectedBookingTime = val;
-                timesBox.querySelectorAll("button").forEach(function (b) { b.classList.remove("active"); });
-                btn.classList.add("active");
-            });
-        }
+        btn.addEventListener("click", function () {
+            selectedBookingTime = val;
+            timesBox.querySelectorAll("button").forEach(function (b) { b.classList.remove("active"); });
+            btn.classList.add("active");
+        });
         timesBox.appendChild(btn);
     }
+
+    selectedBookingTime = stillValid ? prevSelected : "";
 
     if (openCount === 0) {
         const msg = document.createElement("span");
@@ -949,7 +1012,13 @@ document.getElementById("pp-quick-weight").addEventListener("click", function ()
 document.getElementById("pb-doctor").addEventListener("change", function () {
     selectedBookingDate = "";
     selectedBookingTime = "";
-    renderPatientBookingDates();
+    renderPatientBookingDates(false);
+});
+
+document.getElementById("pb-reason").addEventListener("change", function () {
+    const otherInput = document.getElementById("pb-reason-other");
+    otherInput.hidden = this.value !== "Other";
+    if (this.value !== "Other") otherInput.value = "";
 });
 
 document.getElementById("pp-book-form").addEventListener("submit", async function (e) {
@@ -959,12 +1028,13 @@ document.getElementById("pp-book-form").addEventListener("submit", async functio
     showInfo("pb-info", "");
 
     const doctorId = document.getElementById("pb-doctor").value;
-    const reason = document.getElementById("pb-reason").value.trim();
+    const reasonSel = document.getElementById("pb-reason").value;
+    const reasonOther = document.getElementById("pb-reason-other").value.trim();
+    const reason = reasonSel === "Other" ? reasonOther : reasonSel;
 
     if (!doctorId) return showError("pb-error", "Please select a doctor.");
     if (!selectedBookingDate) return showError("pb-error", "Please choose an available day.");
     if (!selectedBookingTime) return showError("pb-error", "Please click an available time slot.");
-    if (!reason) return showError("pb-error", "Please enter a reason for the visit.");
 
     const bookedDate = selectedBookingDate;
     const bookedTime = selectedBookingTime;
@@ -982,6 +1052,8 @@ document.getElementById("pp-book-form").addEventListener("submit", async functio
 
     if (error) return showError("pb-error", error.message);
     document.getElementById("pb-reason").value = "";
+    document.getElementById("pb-reason-other").value = "";
+    document.getElementById("pb-reason-other").hidden = true;
     selectedBookingTime = "";
     showInfo("pb-info", "Appointment booked for " + bookedDate + " at " + format12Hour(bookedTime) + "!");
     await loadAll();
