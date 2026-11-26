@@ -26,6 +26,8 @@ const DAY_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Frid
 
 let currentUser = null;
 let currentProfile = null;
+let activeViewRole = null;
+let actingAsId = null;
 let myPatient = null;
 let myDoctor = null;
 
@@ -403,8 +405,93 @@ function openProfileModal() {
         details.appendChild(card);
     });
 
-    document.getElementById("profile-modal").hidden = false;
+        document.getElementById("profile-modal").hidden = false;
+
+    const switchBox = document.getElementById("pm-admin-switch");
+    if (currentProfile.role === "admin") {
+        switchBox.hidden = false;
+        syncAdminSwitchUI(activeViewRole || "admin");
+    } else {
+        switchBox.hidden = true;
+    }
 }
+
+let pendingSwitchRole = "admin";
+
+function syncAdminSwitchUI(role) {
+    pendingSwitchRole = role;
+    document.querySelectorAll("#pm-role-btns button").forEach(function (b) {
+        b.classList.toggle("active", b.dataset.view === role);
+    });
+    const sel = document.getElementById("pm-impersonate-select");
+    const applyBtn = document.getElementById("pm-apply-view");
+    sel.innerHTML = "";
+    showError("pm-error", "");
+
+    if (role === "admin") {
+        sel.hidden = true;
+        applyBtn.hidden = activeViewRole === "admin";
+        applyBtn.textContent = "Back to Admin View";
+    } else if (role === "patient") {
+        if (patients.length === 0) {
+            sel.hidden = true;
+            applyBtn.hidden = true;
+            showError("pm-error", "Add at least one patient first before acting as a patient.");
+            return;
+        }
+        patients.forEach(function (p) {
+            sel.add(new Option(p.name + " (" + p.id + ")", p.id));
+        });
+        if (activeViewRole === "patient" && actingAsId && findById(patients, actingAsId)) {
+            sel.value = actingAsId;
+        }
+        sel.hidden = false;
+        applyBtn.hidden = false;
+        applyBtn.textContent = "Act as Patient";
+    } else {
+        if (doctors.length === 0) {
+            sel.hidden = true;
+            applyBtn.hidden = true;
+            showError("pm-error", "Add at least one doctor first before acting as a doctor.");
+            return;
+        }
+        doctors.forEach(function (d) {
+            sel.add(new Option("Dr. " + d.name + " (" + d.id + " · " + d.specialty + ")", d.id));
+        });
+        if (activeViewRole === "doctor" && actingAsId && findById(doctors, actingAsId)) {
+            sel.value = actingAsId;
+        }
+        sel.hidden = false;
+        applyBtn.hidden = false;
+        applyBtn.textContent = "Act as Doctor";
+    }
+}
+
+document.querySelectorAll("#pm-role-btns button").forEach(function (btn) {
+    btn.addEventListener("click", function () {
+        syncAdminSwitchUI(btn.dataset.view);
+    });
+});
+
+document.getElementById("pm-apply-view").addEventListener("click", async function () {
+    if (!currentProfile || currentProfile.role !== "admin") return;
+    if (pendingSwitchRole === "admin") {
+        activeViewRole = "admin";
+        actingAsId = null;
+    } else {
+        const chosenId = document.getElementById("pm-impersonate-select").value;
+        if (!chosenId) return;
+        activeViewRole = pendingSwitchRole;
+        actingAsId = chosenId;
+    }
+    selectedBookingDate = "";
+    selectedBookingTime = "";
+    lastDataHash = "";
+    lastSlotsKey = "";
+    closeProfileModal();
+    applyPortalView();
+    await loadAll(false);
+});
 
 function closeProfileModal() {
     document.getElementById("profile-modal").hidden = true;
@@ -535,6 +622,8 @@ async function handleSession(session) {
     if (!currentUser) {
         stopLiveSync();
         currentProfile = null;
+        activeViewRole = null;
+        actingAsId = null;
         myPatient = null;
         myDoctor = null;
         patients = [];
@@ -602,23 +691,38 @@ async function loadUserPortal(user) {
         return;
     }
 
-    currentProfile = profile;
+        currentProfile = profile;
+    activeViewRole = profile.role;
+    actingAsId = null;
     document.getElementById("auth-section").hidden = true;
     document.getElementById("setup-section").hidden = true;
     document.getElementById("app-nav").hidden = false;
     document.getElementById("app-main").hidden = false;
 
     updateProfileButton();
+    applyPortalView();
+
+    await loadAll();
+    startLiveSync();
+}
+
+function applyPortalView() {
+    if (!currentProfile) return;
+    const role = activeViewRole || currentProfile.role;
     const badge = document.getElementById("role-badge");
-    badge.textContent = profile.role;
+    if (currentProfile.role === "admin" && role !== "admin") {
+        badge.textContent = "Admin -> " + role + (actingAsId ? " (" + actingAsId + ")" : "");
+    } else {
+        badge.textContent = role;
+    }
     badge.hidden = false;
 
-    if (profile.role === "patient") {
+    if (role === "patient") {
         buildNav([
             { label: "My Health", sectionId: "patient-profile-sec", bg: "patients" },
             { label: "Appointments", sectionId: "patient-appts-sec", bg: "appointments" }
         ]);
-    } else if (profile.role === "doctor") {
+    } else if (role === "doctor") {
         buildNav([
             { label: "My Appointments", sectionId: "doctor-appts-sec", bg: "appointments" },
             { label: "My Patients", sectionId: "doctor-patients-sec", bg: "doctors" },
@@ -631,9 +735,7 @@ async function loadUserPortal(user) {
             { label: "Appointments", sectionId: "appointments", bg: "appointments" }
         ]);
     }
-
-    await loadAll();
-    startLiveSync();
+}
 }
 
 function scheduleLiveRefresh() {
@@ -706,9 +808,10 @@ async function loadAll(isSilent) {
         const newA = aRes.data || [];
         const newAv = avRes.data || [];
 
-        const newHash = JSON.stringify([newP, newD, newA, newAv]);
+                const newHash = JSON.stringify([newP, newD, newA, newAv]);
+        const viewRole = activeViewRole || currentProfile.role;
         if (isSilent && newHash === lastDataHash) {
-            if (currentProfile.role === "patient" && selectedBookingDate) {
+            if (viewRole === "patient" && selectedBookingDate) {
                 const docId = document.getElementById("pb-doctor").value;
                 const dow = dayOfWeekFromDate(selectedBookingDate);
                 const dayAvail = availability.find(function (av) { return av.doctor_id === docId && av.day_of_week === dow; });
@@ -725,11 +828,15 @@ async function loadAll(isSilent) {
         appointments = newA;
         availability = newAv;
 
-        if (currentProfile.role === "patient") {
-            myPatient = patients.find(function (p) { return p.auth_user_id === currentUser.id; }) || patients[0] || null;
+        if (viewRole === "patient") {
+            myPatient = (currentProfile.role === "admin" && actingAsId)
+                ? findById(patients, actingAsId)
+                : (patients.find(function (p) { return p.auth_user_id === currentUser.id; }) || patients[0] || null);
             renderPatientPortal(!!isSilent);
-        } else if (currentProfile.role === "doctor") {
-            myDoctor = doctors.find(function (d) { return d.auth_user_id === currentUser.id; }) || null;
+        } else if (viewRole === "doctor") {
+            myDoctor = (currentProfile.role === "admin" && actingAsId)
+                ? findById(doctors, actingAsId)
+                : (doctors.find(function (d) { return d.auth_user_id === currentUser.id; }) || null);
             renderDoctorPortal();
             renderDoctorAvailability();
         } else {
@@ -828,8 +935,9 @@ function renderPatientPortal(keepSelection) {
     document.getElementById("pp-heading").textContent = "Welcome, " + myPatient.name + " (" + myPatient.id + ")";
     document.getElementById("pp-advice").textContent = healthAdvice(cat);
 
-    const completedCount = appointments.filter(function (a) { return a.status === "Completed"; }).length;
-    const scheduledCount = appointments.length - completedCount;
+    const myAppts = appointments.filter(function (a) { return a.patient_id === myPatient.id; });
+    const completedCount = myAppts.filter(function (a) { return a.status === "Completed"; }).length;
+    const scheduledCount = myAppts.length - completedCount;
 
     const grid = document.getElementById("pp-stats");
     grid.innerHTML = "";
@@ -863,10 +971,10 @@ function renderPatientPortal(keepSelection) {
 
     const body = document.getElementById("pp-appts-body");
     body.innerHTML = "";
-    if (appointments.length === 0) {
+    if (myAppts.length === 0) {
         addRow(body, ["—", "No appointments scheduled yet.", "", "", "", "", "", ""]);
     } else {
-        appointments.forEach(function (a) {
+        myAppts.forEach(function (a) {
             const doc = findById(doctors, a.doctor_id);
             const st = a.status || "Scheduled";
             addRow(body, [
@@ -1089,21 +1197,25 @@ document.querySelectorAll("#dp-filters button").forEach(function (btn) {
 });
 
 function renderDoctorPortal() {
-    if (myDoctor) {
-        document.getElementById("dp-heading").textContent = "Dr. " + myDoctor.name + " (" + myDoctor.id + ")";
-        document.getElementById("dp-subtitle").textContent = "Specialty: " + myDoctor.specialty;
-    }
+    if (!myDoctor) return;
+    document.getElementById("dp-heading").textContent = "Dr. " + myDoctor.name + " (" + myDoctor.id + ")";
+    document.getElementById("dp-subtitle").textContent = "Specialty: " + myDoctor.specialty;
 
-    const completedCount = appointments.filter(function (a) { return a.status === "Completed"; }).length;
-    const scheduledCount = appointments.length - completedCount;
+    const docAppts = appointments.filter(function (a) { return a.doctor_id === myDoctor.id; });
+    const docPatients = patients.filter(function (p) {
+        return docAppts.some(function (a) { return a.patient_id === p.id; });
+    });
+
+    const completedCount = docAppts.filter(function (a) { return a.status === "Completed"; }).length;
+    const scheduledCount = docAppts.length - completedCount;
 
     const grid = document.getElementById("dp-stats");
     grid.innerHTML = "";
     [
-        ["Total Appointments", String(appointments.length)],
+        ["Total Appointments", String(docAppts.length)],
         ["Scheduled", String(scheduledCount)],
         ["Completed", String(completedCount)],
-        ["My Patients", String(patients.length)]
+        ["My Patients", String(docPatients.length)]
     ].forEach(function (pair) {
         const card = document.createElement("div");
         card.className = "report-stat";
@@ -1116,7 +1228,7 @@ function renderDoctorPortal() {
         grid.appendChild(card);
     });
 
-    const filtered = appointments.filter(function (a) {
+    const filtered = docAppts.filter(function (a) {
         if (doctorFilter === "All") return true;
         return (a.status || "Scheduled") === doctorFilter;
     });
@@ -1161,10 +1273,10 @@ function renderDoctorPortal() {
 
     const pBody = document.getElementById("dp-patients-body");
     pBody.innerHTML = "";
-    if (patients.length === 0) {
+    if (docPatients.length === 0) {
         addRow(pBody, ["—", "No patients assigned yet.", "", "", "", "", "", ""]);
     } else {
-        patients.forEach(function (p) {
+        docPatients.forEach(function (p) {
             const b = bmi(p);
             addRow(
                 pBody,
@@ -1176,7 +1288,6 @@ function renderDoctorPortal() {
         });
     }
 }
-
 function renderDoctorAvailability() {
     if (!myDoctor) return;
     const body = document.getElementById("av-body");
