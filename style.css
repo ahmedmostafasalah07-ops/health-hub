@@ -237,6 +237,7 @@ form { display: flex; flex-wrap: wrap; gap: 10px; }
 input, select, textarea {
     background: rgba(11, 13, 18, 0.85);
     color: var(--text);
+    color-scheme: dark;
     border: 1px solid var(--line);
     border-radius: 8px;
     padding: 9px 11px;
@@ -388,3 +389,71 @@ td button.success:hover { border-color: #5CE1A6; }
 }
 .report-item p { margin: 6px 0 0; font-size: 14px; color: var(--text); }
 .report-item .muted { margin: 4px 0 0; font-size: 13px; }
+
+/* Patient Visual Appointment Slot Picker */
+.booking-box {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    margin-bottom: 8px;
+}
+.booking-step {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    width: 100%;
+}
+.booking-submit {
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px;
+}
+.booking-submit input { flex: 1; min-width: 220px; }
+
+.slot-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+.time-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(105px, 1fr));
+    gap: 8px;
+}
+
+.slot-btn {
+    background: rgba(11, 13, 18, 0.82);
+    color: var(--text);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 10px 14px;
+    font-size: 13px;
+    font-weight: bold;
+    cursor: pointer;
+    text-align: center;
+    transition: 0.2s;
+}
+.slot-btn small {
+    display: block;
+    color: var(--muted);
+    font-weight: normal;
+    font-size: 11px;
+    margin-top: 3px;
+}
+.slot-btn:hover:not(:disabled) {
+    border-color: var(--accent);
+    background: rgba(255, 92, 108, 0.12);
+}
+.slot-btn.active {
+    background: var(--accent);
+    color: #FFFFFF;
+    border-color: var(--accent);
+    box-shadow: 0 0 14px var(--accent-glow);
+}
+.slot-btn.active small { color: rgba(255, 255, 255, 0.9); }
+.slot-btn:disabled {
+    opacity: 0.38;
+    cursor: not-allowed;
+    text-decoration: line-through;
+}
