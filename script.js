@@ -239,8 +239,16 @@ document.addEventListener("keydown", function (e) { if (e.key === "Escape") clos
 
 function addRow(tbody, cells, actions) {
     const tr = document.createElement("tr");
-    cells.forEach(function (cell) {
+    const table = tbody.closest("table");
+    const headers = table
+        ? Array.from(table.querySelectorAll("thead th")).map(function (th) { return th.textContent.trim(); })
+        : [];
+    const isEmptyRow = actions === undefined;
+    if (isEmptyRow) tr.className = "empty-row";
+
+    cells.forEach(function (cell, idx) {
         const td = document.createElement("td");
+        if (headers[idx]) td.dataset.label = headers[idx];
         if (cell && typeof cell === "object" && cell.badge) {
             const span = document.createElement("span");
             span.className = "badge " + cell.badge;
@@ -261,12 +269,16 @@ function addRow(tbody, cells, actions) {
             }
         } else {
             td.textContent = cell;
+            if (isEmptyRow && (cell === "" || cell === "—")) {
+                td.className = "empty-placeholder-cell";
+            }
         }
         tr.appendChild(td);
     });
 
     if (actions !== undefined) {
         const td = document.createElement("td");
+        td.className = "actions-cell";
         if (actions && actions.length > 0) {
             const dots = document.createElement("button");
             dots.type = "button";
@@ -303,6 +315,7 @@ wirePasswordToggle("toggle-su-pass", "su-password");
 function closeMobileSidebar() {
     const sb = document.getElementById("app-sidebar");
     if (sb) sb.classList.remove("open");
+    document.body.classList.remove("drawer-open");
     setHidden("sidebar-overlay", true);
 }
 
@@ -313,6 +326,7 @@ if (sbToggle) {
         if (!sb) return;
         const willOpen = !sb.classList.contains("open");
         sb.classList.toggle("open", willOpen);
+        document.body.classList.toggle("drawer-open", willOpen);
         setHidden("sidebar-overlay", !willOpen);
     });
 }
