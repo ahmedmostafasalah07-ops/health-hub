@@ -6,22 +6,17 @@ const EMAILJS_PUBLIC_KEY = "xHopPrNzKCEaQxiI1";
 const EMAILJS_SERVICE_ID = "service_6teeq3t";
 const EMAILJS_TEMPLATE_ID = "template_tdpelvi";
 
-let tabId = sessionStorage.getItem("hh_tab_id");
-if (!tabId) {
-    tabId = "tab_" + Math.random().toString(36).slice(2) + "_" + Date.now();
-    sessionStorage.setItem("hh_tab_id", tabId);
-}
+const tabId = "tab_" + Math.random().toString(36).slice(2);
 
 const db = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
     auth: {
-        storage: window.sessionStorage,
-        storageKey: "healthhub-auth-" + tabId,
+        storage: window.localStorage,
+        storageKey: "healthhub-auth",
         persistSession: true,
         autoRefreshToken: true,
         detectSessionInUrl: true
     }
 });
-
 const DAY_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 
 let currentUser = null;
@@ -181,6 +176,10 @@ wirePasswordToggle("toggle-su-pass", "su-password");
 async function sendWelcomeEmail(toEmail, payload, regData) {
     if (!EMAILJS_PUBLIC_KEY || !EMAILJS_SERVICE_ID || !EMAILJS_TEMPLATE_ID) return;
     if (!window.emailjs) return;
+        if (payload.p_role === "admin" && regData && regData.approval_status === "pending") {
+        await sendAdminRequestEmail(regData.primary_admin_email, payload.p_name, toEmail);
+        return;
+    }
     if (payload.p_role !== "patient" && payload.p_role !== "doctor") return;
 
     let detailsText = "";
@@ -214,6 +213,52 @@ async function sendWelcomeEmail(toEmail, payload, regData) {
         });
     } catch (err) {
         console.warn("Welcome email skipped:", err);
+    }
+}
+async function sendAdminRequestEmail(primaryEmail, applicantName, applicantEmail) {
+    if (!EMAILJS_PUBLIC_KEY || !EMAILJS_SERVICE_ID || !EMAILJS_TEMPLATE_ID) return;
+    if (!window.emailjs || !primaryEmail) return;
+
+    const detailsText =
+        "New Admin Approval Request\n" +
+        "Applicant Name: " + applicantName + "\n" +
+        "Applicant Email: " + applicantEmail + "\n" +
+        "Status: Pending Primary Admin Approval\n\n" +
+        "Open Health Hub -> Admin Approvals to Approve or Deny:\n" +
+        window.location.origin + window.location.pathname;
+
+    try {
+        window.emailjs.init({ publicKey: EMAILJS_PUBLIC_KEY });
+        await window.emailjs.send(EMAILJS_SERVICE_ID, EMAILJS_TEMPLATE_ID, {
+            to_email: primaryEmail,
+            user_name: "Primary Admin",
+            user_role: "New Admin Approval Request",
+            user_id: "PENDING",
+            user_details: detailsText
+        });
+    } catch (err) {
+        console.warn("Admin request email skipped:", err);
+    }
+}
+
+async function sendAdminDecisionEmail(toEmail, adminName, decision) {
+    if (!EMAILJS_PUBLIC_KEY || !EMAILJS_SERVICE_ID || !EMAILJS_TEMPLATE_ID) return;
+    if (!window.emailjs || !toEmail) return;
+
+    const approved = decision === "approved";
+    try {
+        window.emailjs.init({ publicKey: EMAILJS_PUBLIC_KEY });
+        await window.emailjs.send(EMAILJS_SERVICE_ID, EMAILJS_TEMPLATE_ID, {
+            to_email: toEmail,
+            user_name: adminName || "Admin",
+            user_role: approved ? "Admin Request Approved" : "Admin Request Denied",
+            user_id: approved ? "APPROVED" : "DENIED",
+            user_details: approved
+                ? "Your Health Hub Admin account has been APPROVED by the Primary Admin! You can now log in:\n" + window.location.origin + window.location.pathname
+                : "Your Health Hub Admin access request was DENIED by the Primary Admin."
+        });
+    } catch (err) {
+        console.warn("Admin decision email skipped:", err);
     }
 }
 
@@ -639,6 +684,7 @@ async function handleSession(session) {
         closeAvailModal();
         document.getElementById("auth-section").hidden = false;
         document.getElementById("setup-section").hidden = true;
+        document.getElementById("pending-section").hidden = true;
         document.getElementById("app-nav").hidden = true;
         document.getElementById("app-main").hidden = true;
         document.getElementById("profile-btn").hidden = true;
@@ -692,6 +738,28 @@ async function loadUserPortal(user) {
     }
 
         currentProfile = profile;
+        if (profile.role === "admin" && profile.approval_status && profile.approval_status !== "approved") {
+        stopLiveSync();
+        document.getElementById("auth-section").hidden = true;
+        document.getElementById("setup-section").hidden = true;
+        document.getElementById("app-nav").hidden = true;
+        document.getElementById("app-main").hidden = true;
+        document.getElementById("profile-btn").hidden = true;
+        document.getElementById("role-badge").hidden = true;
+        document.getElementById("pending-section").hidden = false;
+        document.body.dataset.bg = "auth";
+
+        const isRejected = profile.approval_status === "rejected";
+        document.getElementById("pending-title").textContent = isRejected
+            ? "Admin Access Denied"
+            : "Waiting for Primary Admin Approval";
+        document.getElementById("pending-msg").textContent = isRejected
+            ? "Your Admin access request was denied by the Primary Admin."
+            : "Your Admin request has been sent to the Primary Admin. Once they approve it, click Check Approval Status to enter.";
+        showInfo("pending-info", "");
+        return;
+    }
+    document.getElementById("pending-section").hidden = true;
     activeViewRole = profile.role;
     actingAsId = null;
     document.getElementById("auth-section").hidden = true;
@@ -729,11 +797,15 @@ function applyPortalView() {
             { label: "My Availability", sectionId: "doctor-avail-sec", bg: "doctors" }
         ]);
     } else {
-        buildNav([
+            const adminTabs = [
             { label: "Patients", sectionId: "patients", bg: "patients" },
             { label: "Doctors", sectionId: "doctors", bg: "doctors" },
             { label: "Appointments", sectionId: "appointments", bg: "appointments" }
-        ]);
+        ];
+        if (currentProfile.is_primary_admin) {
+            adminTabs.push({ label: "Admin Approvals", sectionId: "admin-approvals", bg: "doctors" });
+        }
+        buildNav(adminTabs);
     }
     
 }
@@ -850,6 +922,7 @@ async function loadAll(isSilent) {
                 await refreshTimeSlots("a-doctor", "a-date", "a-time", "a-avail-hint", null);
             }
             renderAppointments();
+            if (currentProfile.is_primary_admin) await loadAdminRequests();
         }
     } finally {
         isLoadingData = false;
@@ -1895,6 +1968,93 @@ document.getElementById("appt-form").addEventListener("submit", async function (
     showError("a-error", "");
     stopEditAppt();
     await loadAll();
+});
+
+/* ---------------- PRIMARY ADMIN APPROVALS ---------------- */
+
+let adminRequests = [];
+
+async function loadAdminRequests() {
+    if (!currentProfile || !currentProfile.is_primary_admin) return;
+    const { data, error } = await db.rpc("get_admin_requests");
+    if (error) return showError("aa-error", error.message);
+    adminRequests = data || [];
+    renderAdminRequests();
+}
+
+function renderAdminRequests() {
+    const body = document.getElementById("aa-body");
+    if (!body) return;
+    body.innerHTML = "";
+    showError("aa-error", "");
+
+    const pendingCount = adminRequests.filter(function (r) { return r.approval_status === "pending"; }).length;
+    const navBtn = document.querySelector('#app-nav button[data-section="admin-approvals"]');
+    if (navBtn) {
+        navBtn.textContent = pendingCount > 0 ? "Admin Approvals (" + pendingCount + ")" : "Admin Approvals";
+    }
+
+    if (adminRequests.length === 0) {
+        addRow(body, ["No other admin requests yet.", "", "", "", ""]);
+        return;
+    }
+
+    adminRequests.forEach(function (req) {
+        const badgeType = req.approval_status === "approved"
+            ? "completed"
+            : (req.approval_status === "pending" ? "scheduled" : "danger");
+        const statusText = req.approval_status.charAt(0).toUpperCase() + req.approval_status.slice(1);
+        const dateStr = req.created_at ? new Date(req.created_at).toLocaleString() : "—";
+
+        const actions = [];
+        if (req.approval_status !== "approved") {
+            actions.push({
+                label: "Approve",
+                className: "success",
+                onClick: async function () {
+                    const { error } = await db.rpc("review_admin_request", {
+                        p_target_user_id: req.user_id,
+                        p_decision: "approved"
+                    });
+                    if (error) return showError("aa-error", error.message);
+                    showInfo("aa-info", "Approved " + req.full_name + " (" + req.email + ").");
+                    sendAdminDecisionEmail(req.email, req.full_name, "approved");
+                    await loadAdminRequests();
+                }
+            });
+        }
+        if (req.approval_status !== "rejected") {
+            actions.push({
+                label: req.approval_status === "approved" ? "Revoke" : "Deny",
+                className: "danger",
+                onClick: async function () {
+                    const { error } = await db.rpc("review_admin_request", {
+                        p_target_user_id: req.user_id,
+                        p_decision: "rejected"
+                    });
+                    if (error) return showError("aa-error", error.message);
+                    showInfo("aa-info", "Denied/revoked " + req.full_name + " (" + req.email + ").");
+                    sendAdminDecisionEmail(req.email, req.full_name, "rejected");
+                    await loadAdminRequests();
+                }
+            });
+        }
+
+        addRow(
+            body,
+            [req.full_name, req.email, { badge: badgeType, text: statusText }, dateStr],
+            actions
+        );
+    });
+}
+
+document.getElementById("pending-refresh-btn").addEventListener("click", async function () {
+    showInfo("pending-info", "Checking...");
+    if (currentUser) await loadUserPortal(currentUser);
+});
+
+document.getElementById("pending-logout-btn").addEventListener("click", async function () {
+    await db.auth.signOut();
 });
 
 /* ---------------- STARTUP ---------------- */
