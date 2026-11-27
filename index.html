@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>health-hub</title>
     <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><rect width='64' height='64' rx='14' fill='%230B0F14'/><path d='M32 54 C32 54 10 40 10 24 C10 15 17 10 24 10 C28.5 10 31 12.5 32 15 C33 12.5 35.5 10 40 10 C47 10 54 15 54 24 C54 40 32 54 32 54 Z' fill='%23FF5C6C'/><polyline points='14,31 23,31 27,21 33,41 38,26 42,31 50,31' fill='none' stroke='%23FFFFFF' stroke-width='4' stroke-linecap='round' stroke-linejoin='round'/></svg>">
-    <link rel="stylesheet" href="style.css?v=4">
+    <link rel="stylesheet" href="style.css?v=5">
 </head>
 <body data-bg="auth">
 
@@ -292,6 +292,71 @@
             </section>
 
             <!-- ========== DOCTOR PORTAL ========== -->
+            <section id="doctor-home-sec" hidden>
+                <div class="hero-card">
+                    <div class="hero-text">
+                        <span id="dh-greeting-pill" class="badge role-pill">Doctor Portal</span>
+                        <h2 id="dh-heading">Doctor Dashboard</h2>
+                        <p id="dh-subtitle" class="muted"></p>
+                    </div>
+                    <div class="hero-actions">
+                        <button type="button" id="dh-go-avail" class="accent-btn">&#128338; Manage Schedule</button>
+                        <button type="button" id="dh-go-edit" class="cancel">&#9998; Edit Profile</button>
+                    </div>
+                </div>
+
+                <!-- Practice Stats Grid -->
+                <div id="dh-stats" class="report-grid"></div>
+
+                <!-- Visit Completion Meter -->
+                <div id="dh-progress-card" class="dash-card">
+                    <div class="dash-card-head">
+                        <h3>&#128202; Appointment Progress</h3>
+                        <span id="dh-progress-badge" class="badge completed">0% Completed</span>
+                    </div>
+                    <div class="progress-track">
+                        <div id="dh-progress-fill" class="progress-fill" style="width:0%"></div>
+                    </div>
+                    <p id="dh-progress-text" class="muted"></p>
+                </div>
+
+                <!-- Two-Column Dashboard: Next Upcoming Patient + Today's / Pending Queue -->
+                <div class="dash-two-col">
+                    <div class="dash-card">
+                        <div class="dash-card-head">
+                            <h3>&#128197; Next Upcoming Patient</h3>
+                            <button type="button" id="dh-view-all-appts" class="cancel small-btn">See All</button>
+                        </div>
+                        <div id="dh-next-appt"></div>
+                    </div>
+
+                    <div class="dash-card">
+                        <div class="dash-card-head">
+                            <h3>&#128221; Upcoming Queue</h3>
+                            <button type="button" id="dh-view-patients" class="cancel small-btn">My Patients</button>
+                        </div>
+                        <div id="dh-queue-list"></div>
+                    </div>
+                </div>
+
+                <!-- Doctor's Weekly Schedule & Clinic Locations -->
+                <div class="dash-card">
+                    <div class="dash-card-head">
+                        <h3>&#128205; My Weekly Clinic Schedule</h3>
+                        <button type="button" id="dh-edit-schedule" class="cancel small-btn">Edit Hours &amp; Locations</button>
+                    </div>
+                    <div id="dh-schedule-list" class="clinics-grid"></div>
+                </div>
+
+                <!-- Quick Practice Guide -->
+                <div class="dash-card">
+                    <div class="dash-card-head">
+                        <h3>&#10024; Quick Practice Guide</h3>
+                    </div>
+                    <div id="dh-tips-grid" class="tips-grid"></div>
+                </div>
+            </section>
+
             <section id="doctor-appts-sec" hidden>
                 <div class="section-head">
                     <div>
@@ -784,6 +849,6 @@
 
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
-    <script src="script.js?v=4"></script>
+    <script src="script.js?v=5"></script>
 </body>
 </html>

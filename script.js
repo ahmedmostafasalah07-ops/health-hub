@@ -2,9 +2,9 @@ const SUPABASE_URL = "https://uzjobtodofcwdrybykuy.supabase.co";
 const SUPABASE_KEY = "sb_publishable_rY5kXxNWYKRywqaS50HTSA_VPkrKek_";
 
 // EmailJS settings (paste your 3 keys for Welcome Emails & Primary Admin Approval Emails):
-const EMAILJS_PUBLIC_KEY = "xHopPrNzKCEaQxiI1";
-const EMAILJS_SERVICE_ID = "service_6teeq3t";
-const EMAILJS_TEMPLATE_ID = "template_tdpelvi";
+const EMAILJS_PUBLIC_KEY = "";
+const EMAILJS_SERVICE_ID = "";
+const EMAILJS_TEMPLATE_ID = "";
 
 // Keep users logged in across refreshes/reopens until they manually click Log out:
 const db = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
@@ -889,6 +889,7 @@ function applyPortalView() {
         ]);
     } else if (viewRole === "doctor") {
         buildNav([
+            { icon: "🩺", label: "Dashboard", sectionId: "doctor-home-sec", bg: "doctors" },
             { icon: "📅", label: "My Appointments", sectionId: "doctor-appts-sec", bg: "appointments" },
             { icon: "🧑‍🤝‍🧑", label: "My Patients", sectionId: "doctor-patients-sec", bg: "doctors" },
             { icon: "🕒", label: "My Availability", sectionId: "doctor-avail-sec", bg: "doctors" }
@@ -1261,6 +1262,7 @@ async function refreshTimeSlots(docSelectId, dateInputId, timeSelectId, hintId, 
         timeSelect.value = keepTime;
     }
 }
+
 /* ---------------- PATIENT PORTAL (NEAREST LOCATION + GOOGLE MAPS) ---------------- */
 
 function renderPatientLocationPicker(keepSelection) {
@@ -1867,6 +1869,32 @@ document.getElementById("pp-book-form").addEventListener("submit", async functio
 
 let editingDoctorAvailId = null;
 
+function goToDoctorTab(sectionId, bgKey) {
+    showSection(sectionId, bgKey);
+    const nav = document.getElementById("app-nav");
+    if (nav) {
+        nav.querySelectorAll("button").forEach(function (b) {
+            b.classList.toggle("active", b.dataset.section === sectionId);
+        });
+    }
+}
+
+document.getElementById("dh-go-avail").addEventListener("click", function () {
+    goToDoctorTab("doctor-avail-sec", "doctors");
+});
+document.getElementById("dh-edit-schedule").addEventListener("click", function () {
+    goToDoctorTab("doctor-avail-sec", "doctors");
+});
+document.getElementById("dh-view-all-appts").addEventListener("click", function () {
+    goToDoctorTab("doctor-appts-sec", "appointments");
+});
+document.getElementById("dh-view-patients").addEventListener("click", function () {
+    goToDoctorTab("doctor-patients-sec", "doctors");
+});
+document.getElementById("dh-go-edit").addEventListener("click", function () {
+    openProfileModal("edit");
+});
+
 document.querySelectorAll("#dp-filters button").forEach(function (btn) {
     btn.addEventListener("click", function () {
         document.querySelectorAll("#dp-filters button").forEach(function (b) { b.classList.remove("active"); });
@@ -1875,6 +1903,231 @@ document.querySelectorAll("#dp-filters button").forEach(function (btn) {
         renderDoctorPortal();
     });
 });
+
+function renderDoctorHomeDashboard(myAppts, myPatients) {
+    const docName = myDoctor ? myDoctor.name : (currentProfile ? currentProfile.full_name : "Doctor");
+    const docId = myDoctor ? myDoctor.id : "—";
+    const docSpec = myDoctor ? myDoctor.specialty : "General Practice";
+
+    const todayIso = toLocalIsoDate(new Date());
+    const completedList = myAppts.filter(function (a) { return a.status === "Completed"; });
+    const upcomingList = myAppts.filter(function (a) { return (a.status || "Scheduled") !== "Completed"; });
+    const todayList = upcomingList.filter(function (a) { return a.date === todayIso; });
+    const myAvail = myDoctor
+        ? availability.filter(function (av) { return av.doctor_id === myDoctor.id; })
+        : [];
+
+    const hour = new Date().getHours();
+    const greeting = hour < 12 ? "Good morning" : (hour < 18 ? "Good afternoon" : "Good evening");
+    document.getElementById("dh-greeting-pill").textContent = greeting + (myDoctor ? " · ID " + myDoctor.id : "");
+    document.getElementById("dh-heading").textContent = "Welcome, Dr. " + docName;
+    document.getElementById("dh-subtitle").textContent =
+        "Specialty: " + docSpec +
+        (upcomingList.length > 0
+            ? " · You have " + upcomingList.length + " upcoming appointment" + (upcomingList.length === 1 ? "" : "s") + (todayList.length > 0 ? " (" + todayList.length + " today)" : "") + "."
+            : " · Your schedule is currently clear. Set or update your clinic hours anytime.");
+
+    // 6-Card Stats Grid
+    const dhStats = document.getElementById("dh-stats");
+    dhStats.innerHTML = "";
+    [
+        ["Doctor ID", docId],
+        ["Specialty", docSpec],
+        ["Today's Visits", String(todayList.length)],
+        ["Scheduled", String(upcomingList.length)],
+        ["Completed", String(completedList.length)],
+        ["My Patients", String(myPatients.length)]
+    ].forEach(function (pair) {
+        const card = document.createElement("div");
+        card.className = "report-stat";
+        const label = document.createElement("small");
+        label.textContent = pair[0];
+        const val = document.createElement("strong");
+        val.textContent = pair[1];
+        card.appendChild(label);
+        card.appendChild(val);
+        dhStats.appendChild(card);
+    });
+
+    // Completion Progress Bar
+    const total = myAppts.length;
+    const pct = total > 0 ? Math.round((completedList.length / total) * 100) : 0;
+    const progBadge = document.getElementById("dh-progress-badge");
+    progBadge.textContent = pct + "% Completed";
+    progBadge.className = "badge " + (pct >= 70 || total === 0 ? "completed" : "scheduled");
+    document.getElementById("dh-progress-fill").style.width = pct + "%";
+    document.getElementById("dh-progress-text").textContent = total > 0
+        ? completedList.length + " of " + total + " total appointments completed (" + upcomingList.length + " remaining scheduled)."
+        : "No appointments recorded yet. Once patients book with you, your completion progress will track automatically here.";
+
+    // Next Upcoming Patient Spotlight
+    const nextBox = document.getElementById("dh-next-appt");
+    nextBox.innerHTML = "";
+    if (upcomingList.length === 0) {
+        const empty = document.createElement("div");
+        empty.className = "empty-state";
+        empty.innerHTML = "<span>No upcoming patient appointments right now.</span>";
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "accent-btn small-btn";
+        btn.textContent = "🕒 Set Available Hours";
+        btn.addEventListener("click", function () { goToDoctorTab("doctor-avail-sec", "doctors"); });
+        empty.appendChild(btn);
+        nextBox.appendChild(empty);
+    } else {
+        const next = upcomingList[0];
+        const p = findById(patients, next.patient_id);
+        const loc = findLocation(next.location_id);
+        const wrap = document.createElement("div");
+        wrap.className = "spotlight-box";
+
+        const line1 = document.createElement("strong");
+        line1.textContent = p ? p.name + " (" + p.id + ")" : next.patient_id;
+        const line2 = document.createElement("div");
+        line2.className = "muted";
+        line2.textContent = "📅 " + next.date + " at " + format12Hour(next.appt_time) + (next.reason ? " · " + next.reason : "");
+        wrap.appendChild(line1);
+        wrap.appendChild(line2);
+
+        if (p) {
+            const vit = document.createElement("div");
+            vit.className = "muted";
+            vit.textContent = "🩺 Age " + p.age + "y · " + p.weight + " Kg · BMI " + bmi(p).toFixed(1) + " (" + category(bmi(p)) + ")";
+            wrap.appendChild(vit);
+        }
+
+        const meta = document.createElement("div");
+        meta.className = "spotlight-meta";
+        const completeBtn = document.createElement("button");
+        completeBtn.type = "button";
+        completeBtn.className = "accent-btn small-btn";
+        completeBtn.textContent = "📝 Complete & Write Report";
+        completeBtn.addEventListener("click", function () { openDoctorReport(next); });
+        meta.appendChild(completeBtn);
+
+        if (loc) {
+            const mapBtn = document.createElement("button");
+            mapBtn.type = "button";
+            mapBtn.className = "cancel small-btn";
+            mapBtn.textContent = "📍 " + loc.name + " · Maps";
+            mapBtn.addEventListener("click", function () { openLocationInGoogleMaps(loc); });
+            meta.appendChild(mapBtn);
+        }
+        wrap.appendChild(meta);
+        nextBox.appendChild(wrap);
+    }
+
+    // Upcoming Queue List (up to 3 scheduled visits)
+    const queueBox = document.getElementById("dh-queue-list");
+    queueBox.innerHTML = "";
+    if (upcomingList.length === 0) {
+        const empty = document.createElement("div");
+        empty.className = "empty-state";
+        empty.textContent = "You're all caught up! New patient bookings will appear here in real time.";
+        queueBox.appendChild(empty);
+    } else {
+        const listEl = document.createElement("div");
+        listEl.className = "queue-list";
+        upcomingList.slice(0, 3).forEach(function (a) {
+            const p = findById(patients, a.patient_id);
+            const loc = findLocation(a.location_id);
+            const item = document.createElement("div");
+            item.className = "queue-item";
+
+            const info = document.createElement("div");
+            info.className = "queue-item-info";
+            const nameEl = document.createElement("strong");
+            nameEl.textContent = (p ? p.name : a.patient_id) + " · " + format12Hour(a.appt_time);
+            const subEl = document.createElement("small");
+            subEl.textContent = a.date + (loc ? " @ " + loc.name : "") + (a.reason ? " · " + a.reason : "");
+            info.appendChild(nameEl);
+            info.appendChild(subEl);
+
+            const actBtn = document.createElement("button");
+            actBtn.type = "button";
+            actBtn.className = "cancel small-btn";
+            actBtn.textContent = "Report";
+            actBtn.addEventListener("click", function () { openDoctorReport(a); });
+
+            item.appendChild(info);
+            item.appendChild(actBtn);
+            listEl.appendChild(item);
+        });
+        queueBox.appendChild(listEl);
+    }
+
+    // My Weekly Clinic Schedule Cards
+    const schedBox = document.getElementById("dh-schedule-list");
+    schedBox.innerHTML = "";
+    if (myAvail.length === 0) {
+        const empty = document.createElement("div");
+        empty.className = "empty-state";
+        empty.innerHTML = "<span>You haven't set your available clinic hours yet. Patients can only book after you choose your days and clinic location.</span>";
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "accent-btn small-btn";
+        btn.textContent = "🕒 Add Clinic Hours Now";
+        btn.addEventListener("click", function () { goToDoctorTab("doctor-avail-sec", "doctors"); });
+        empty.appendChild(btn);
+        schedBox.appendChild(empty);
+    } else {
+        myAvail.forEach(function (av) {
+            const loc = findLocation(av.location_id);
+            const card = document.createElement("div");
+            card.className = "clinic-card";
+
+            const dayTitle = document.createElement("strong");
+            dayTitle.textContent = "📅 " + DAY_NAMES[av.day_of_week] + " · " + format12Hour(av.start_time) + " – " + format12Hour(av.end_time);
+            card.appendChild(dayTitle);
+
+            const detail = document.createElement("small");
+            detail.textContent = (loc ? "📍 " + loc.name : "No branch assigned") + " · " + av.slot_minutes + " min slots";
+            card.appendChild(detail);
+
+            if (loc) {
+                const url = googleMapsUrl(loc);
+                if (url) {
+                    const link = document.createElement("a");
+                    link.href = url;
+                    link.target = "_blank";
+                    link.rel = "noopener";
+                    link.className = "map-link";
+                    link.textContent = "🗺️ Open in Google Maps ↗";
+                    card.appendChild(link);
+                }
+            }
+            schedBox.appendChild(card);
+        });
+    }
+
+    // Quick Practice Guide Tips
+    const tipsBox = document.getElementById("dh-tips-grid");
+    tipsBox.innerHTML = "";
+    [
+        {
+            title: "📍 Choose Your Branches",
+            text: "Open My Availability to pick which clinic branch you work at on each day of the week and your appointment slot length."
+        },
+        {
+            title: "📝 Complete & Write Reports",
+            text: "Use the ⋯ menu on any appointment to write a patient-visible Doctor's Report plus private Clinical Notes."
+        },
+        {
+            title: "❤️ Review Patient Vitals",
+            text: "Open My Patients and click ⋯ → Full Report to check any patient's BMI, vitals, and past visit history before seeing them."
+        }
+    ].forEach(function (t) {
+        const card = document.createElement("div");
+        card.className = "tip-card";
+        const h = document.createElement("strong");
+        h.textContent = t.title;
+        const p = document.createElement("p");
+        p.textContent = t.text;
+        card.appendChild(h);
+        card.appendChild(p);
+        tipsBox.appendChild(card);
+    });
+}
 
 function renderDoctorPortal() {
     if (myDoctor) {
@@ -1891,6 +2144,8 @@ function renderDoctorPortal() {
     const myPatients = (currentProfile && currentProfile.role === "admin" && myDoctor)
         ? patients.filter(function (p) { return !!myPatientIds[p.id]; })
         : patients;
+
+    renderDoctorHomeDashboard(myAppts, myPatients);
 
     const completedCount = myAppts.filter(function (a) { return a.status === "Completed"; }).length;
     const scheduledCount = myAppts.length - completedCount;
@@ -2247,6 +2502,7 @@ document.getElementById("dr-form").addEventListener("submit", async function (e)
     closeDoctorReport();
     await loadAll();
 });
+
 /* ---------------- ADMIN: PATIENTS (POPUP MODAL + THREE-DOTS MENU) ---------------- */
 
 let editingPatient = null;
