@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>health-hub</title>
     <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><rect width='64' height='64' rx='14' fill='%230B0F14'/><path d='M32 54 C32 54 10 40 10 24 C10 15 17 10 24 10 C28.5 10 31 12.5 32 15 C33 12.5 35.5 10 40 10 C47 10 54 15 54 24 C54 40 32 54 32 54 Z' fill='%23FF5C6C'/><polyline points='14,31 23,31 27,21 33,41 38,26 42,31 50,31' fill='none' stroke='%23FFFFFF' stroke-width='4' stroke-linecap='round' stroke-linejoin='round'/></svg>">
-    <link rel="stylesheet" href="style.css?v=3">
+    <link rel="stylesheet" href="style.css?v=4">
 </head>
 <body data-bg="auth">
 
@@ -159,13 +159,71 @@
 
             <!-- ========== PATIENT PORTAL ========== -->
             <section id="patient-profile-sec" hidden>
-                <div class="section-head">
-                    <div>
+                <div class="hero-card">
+                    <div class="hero-text">
+                        <span id="pp-greeting-pill" class="badge role-pill">Patient Portal</span>
                         <h2 id="pp-heading">My Health Profile</h2>
                         <p id="pp-advice" class="muted"></p>
                     </div>
+                    <div class="hero-actions">
+                        <button type="button" id="pp-go-book" class="accent-btn">&#128197; Book Appointment</button>
+                        <button type="button" id="pp-go-edit" class="cancel">&#9998; Edit Profile</button>
+                    </div>
                 </div>
+
+                <!-- Vital Stats Grid -->
                 <div id="pp-stats" class="report-grid"></div>
+
+                <!-- Visual BMI Health Gauge -->
+                <div id="pp-bmi-card" class="dash-card">
+                    <div class="dash-card-head">
+                        <h3>BMI Health Meter</h3>
+                        <span id="pp-bmi-badge" class="badge completed">—</span>
+                    </div>
+                    <div class="bmi-scale">
+                        <div class="bmi-seg bmi-under">Underweight<small>&lt; 18.5</small></div>
+                        <div class="bmi-seg bmi-normal">Normal<small>18.5 – 24.9</small></div>
+                        <div class="bmi-seg bmi-over">Overweight<small>25 – 29.9</small></div>
+                        <div class="bmi-seg bmi-obese">Obese<small>30+</small></div>
+                        <div id="pp-bmi-pin" class="bmi-pin" style="left:50%"></div>
+                    </div>
+                    <p id="pp-bmi-target" class="muted"></p>
+                </div>
+
+                <!-- Two-Column Dashboard: Next Appointment + Latest Doctor Report -->
+                <div class="dash-two-col">
+                    <div class="dash-card">
+                        <div class="dash-card-head">
+                            <h3>&#128197; Next Upcoming Visit</h3>
+                            <button type="button" id="pp-view-all-appts" class="cancel small-btn">See All</button>
+                        </div>
+                        <div id="pp-next-appt"></div>
+                    </div>
+
+                    <div class="dash-card">
+                        <div class="dash-card-head">
+                            <h3>&#129658; Latest Doctor's Report</h3>
+                        </div>
+                        <div id="pp-latest-report"></div>
+                    </div>
+                </div>
+
+                <!-- Clinic Branches & Quick Directions -->
+                <div class="dash-card">
+                    <div class="dash-card-head">
+                        <h3>&#128205; Our Clinic Branches</h3>
+                        <button type="button" id="pp-find-clinic" class="cancel small-btn">Book at Nearest Clinic</button>
+                    </div>
+                    <div id="pp-clinics-list" class="clinics-grid"></div>
+                </div>
+
+                <!-- Personalized Daily Wellness Guide -->
+                <div class="dash-card">
+                    <div class="dash-card-head">
+                        <h3>&#10024; Daily Wellness Guide</h3>
+                    </div>
+                    <div id="pp-tips-grid" class="tips-grid"></div>
+                </div>
             </section>
 
             <section id="patient-appts-sec" hidden>
@@ -528,17 +586,41 @@
         </div>
     </div>
 
-    <!-- Profile Modal (Info + Admin Switcher + Edit + Log Out) -->
+    <!-- Organized Profile Modal (Banner + Overview / Edit Tabs + Admin Switcher) -->
     <div id="profile-modal" class="modal-backdrop" hidden>
-        <div class="modal-card">
+        <div class="modal-card profile-modal-card">
             <div class="modal-header">
-                <h2>My Profile</h2>
+                <h2>Account &amp; Profile</h2>
                 <button type="button" id="pm-close" class="cancel">Close</button>
             </div>
+
+            <!-- Profile Identity Banner -->
+            <div class="profile-banner">
+                <div id="pm-big-avatar" class="avatar avatar-lg">U</div>
+                <div class="profile-banner-info">
+                    <div class="profile-banner-top">
+                        <strong id="pm-banner-name">User</strong>
+                        <span id="pm-banner-badge" class="badge role-pill">Role</span>
+                    </div>
+                    <small id="pm-banner-email" class="muted"></small>
+                </div>
+            </div>
+
+            <!-- Inner Tabs: Overview vs Edit Profile -->
+            <div class="mode-tabs profile-tabs">
+                <button type="button" id="pm-tab-view" class="active">&#128100; Overview</button>
+                <button type="button" id="pm-tab-edit">&#9998; Edit Profile</button>
+            </div>
+
+            <!-- TAB 1: OVERVIEW -->
             <div id="pm-view">
-                <div id="pm-details" class="report-grid"></div>
-                <div id="pm-admin-switch" class="admin-switch-box" hidden>
-                    <label class="field-label">Switch Portal View (Admin)</label>
+                <div class="form-group-card">
+                    <div class="form-group-title">Profile Details</div>
+                    <div id="pm-details" class="report-grid" style="margin-bottom:0;"></div>
+                </div>
+
+                <div id="pm-admin-switch" class="form-group-card" hidden>
+                    <div class="form-group-title">Switch Portal View (Admin)</div>
                     <div class="role-picker" id="pm-role-btns">
                         <button type="button" data-view="admin" class="active">Admin</button>
                         <button type="button" data-view="patient">Patient</button>
@@ -547,36 +629,75 @@
                     <select id="pm-impersonate-select" hidden></select>
                     <button type="button" id="pm-apply-view" class="accent-btn" hidden>Switch View</button>
                 </div>
+
                 <div class="profile-actions">
-                    <button type="button" id="pm-edit-btn" class="accent-btn">Edit Information</button>
+                    <button type="button" id="pm-edit-btn" class="accent-btn">&#9998; Edit Profile</button>
                     <button type="button" id="pm-logout-btn" class="danger-btn">Log out</button>
                 </div>
             </div>
+
+            <!-- TAB 2: ORGANIZED EDIT PROFILE -->
             <form id="pm-edit-form" class="modal-form" hidden>
-                <label class="field-label">Full Name</label>
-                <input id="pm-name" required>
-
-                <div id="pm-patient-fields" class="stack-fields" hidden>
-                    <label class="field-label">Age</label>
-                    <input id="pm-p-age" type="number">
-                    <label class="field-label">Weight (Kg)</label>
-                    <input id="pm-p-weight" type="number" step="0.1">
-                    <label class="field-label">Height (m)</label>
-                    <input id="pm-p-height" type="number" step="0.01">
+                <div class="form-group-card">
+                    <div class="form-group-title">Basic Information</div>
+                    <div class="field-item">
+                        <label class="field-label" for="pm-name">Full Name</label>
+                        <input id="pm-name" placeholder="Enter your full name" required>
+                    </div>
+                    <div class="form-grid-2">
+                        <div class="field-item">
+                            <label class="field-label">Email (login)</label>
+                            <input id="pm-email-readonly" disabled>
+                        </div>
+                        <div class="field-item">
+                            <label class="field-label">Account Role</label>
+                            <input id="pm-role-readonly" disabled>
+                        </div>
+                    </div>
                 </div>
 
-                <div id="pm-doctor-fields" class="stack-fields" hidden>
-                    <label class="field-label">Age</label>
-                    <input id="pm-d-age" type="number">
-                    <label class="field-label">Specialty</label>
-                    <input id="pm-d-spec">
+                <div id="pm-patient-fields" class="form-group-card" hidden>
+                    <div class="form-group-title">Health Vitals</div>
+                    <div class="form-grid-3">
+                        <div class="field-item">
+                            <label class="field-label" for="pm-p-age">Age (yrs)</label>
+                            <input id="pm-p-age" type="number" min="0" max="120" placeholder="e.g. 24">
+                        </div>
+                        <div class="field-item">
+                            <label class="field-label" for="pm-p-weight">Weight (Kg)</label>
+                            <input id="pm-p-weight" type="number" step="0.1" min="2" max="400" placeholder="e.g. 70">
+                        </div>
+                        <div class="field-item">
+                            <label class="field-label" for="pm-p-height">Height (m)</label>
+                            <input id="pm-p-height" type="number" step="0.01" min="0.4" max="2.5" placeholder="e.g. 1.75">
+                        </div>
+                    </div>
+                    <div id="pm-bmi-preview" class="bmi-preview-row">Live BMI Preview: <strong>—</strong></div>
                 </div>
 
-                <div class="auth-actions" style="margin-top:8px;">
-                    <button type="submit">Save Changes</button>
-                    <button type="button" id="pm-cancel-edit" class="cancel">Cancel</button>
+                <div id="pm-doctor-fields" class="form-group-card" hidden>
+                    <div class="form-group-title">Professional Details</div>
+                    <div class="form-grid-2">
+                        <div class="field-item">
+                            <label class="field-label" for="pm-d-age">Age (yrs)</label>
+                            <input id="pm-d-age" type="number" min="0" max="120" placeholder="e.g. 35">
+                        </div>
+                        <div class="field-item">
+                            <label class="field-label" for="pm-d-spec">Specialty</label>
+                            <input id="pm-d-spec" placeholder="e.g. Cardiology">
+                        </div>
+                    </div>
+                </div>
+
+                <div class="profile-actions">
+                    <div class="auth-actions">
+                        <button type="submit">Save Changes</button>
+                        <button type="button" id="pm-cancel-edit" class="cancel">Cancel</button>
+                    </div>
+                    <button type="button" id="pm-edit-logout-btn" class="danger-btn">Log out</button>
                 </div>
             </form>
+
             <p id="pm-error" class="error"></p>
             <p id="pm-info" class="info"></p>
         </div>
@@ -663,6 +784,6 @@
 
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
-    <script src="script.js?v=3"></script>
+    <script src="script.js?v=4"></script>
 </body>
 </html>
