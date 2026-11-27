@@ -5,24 +5,15 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>health-hub</title>
     <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><rect width='64' height='64' rx='14' fill='%230B0F14'/><path d='M32 54 C32 54 10 40 10 24 C10 15 17 10 24 10 C28.5 10 31 12.5 32 15 C33 12.5 35.5 10 40 10 C47 10 54 15 54 24 C54 40 32 54 32 54 Z' fill='%23FF5C6C'/><polyline points='14,31 23,31 27,21 33,41 38,26 42,31 50,31' fill='none' stroke='%23FFFFFF' stroke-width='4' stroke-linecap='round' stroke-linejoin='round'/></svg>">
-    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="style.css?v=3">
 </head>
 <body data-bg="auth">
-    <header>
-        <div class="header-top">
-            <div class="header-left">
-                <!-- Small Profile Button at Top-Left -->
-                <button type="button" id="profile-btn" class="profile-btn" hidden title="My Profile">
-                    <span id="profile-avatar" class="avatar">U</span>
-                    <span id="profile-btn-name">Profile</span>
-                </button>
-                <div class="brand-row">
-                    <h1>Health Hub</h1>
-                    <span id="role-badge" class="badge role-pill" hidden></span>
-                </div>
-            </div>
+
+    <!-- AUTH / LOGGED-OUT HEADER -->
+    <header id="auth-header">
+        <div class="brand-row">
+            <h1>Health Hub</h1>
         </div>
-        <nav id="app-nav" hidden></nav>
     </header>
 
     <!-- AUTH SCREEN (LOG IN / CREATE ACCOUNT) -->
@@ -78,6 +69,7 @@
             <!-- Admin-specific fields -->
             <div id="su-admin-fields" class="stack-fields" hidden>
                 <input id="su-a-code" type="password" placeholder="Admin Access Code">
+                <small class="muted">New Admin accounts require approval from the Primary Admin.</small>
             </div>
 
             <button type="submit">Create account</button>
@@ -87,7 +79,7 @@
         <p id="auth-info" class="info"></p>
     </section>
 
-    <!-- COMPLETE PROFILE (fallback only for older accounts without saved signup metadata) -->
+    <!-- COMPLETE PROFILE (fallback for older accounts) -->
     <section id="setup-section" class="auth-card" hidden>
         <h2>Complete Your Profile</h2>
         <p class="muted">Select your role to finish setting up your account:</p>
@@ -120,7 +112,8 @@
         </form>
         <p id="setup-error" class="error"></p>
     </section>
-        <!-- PENDING / DENIED ADMIN SCREEN -->
+
+    <!-- PENDING / DENIED ADMIN SCREEN -->
     <section id="pending-section" class="auth-card" hidden>
         <h2 id="pending-title">Waiting for Primary Admin Approval</h2>
         <p id="pending-msg" class="muted">Your Admin access request has been sent to the Primary Admin. You will be able to enter once approved.</p>
@@ -131,220 +124,418 @@
         <p id="pending-info" class="info"></p>
     </section>
 
-    <!-- MAIN PORTALS -->
-    <main id="app-main" hidden>
+    <!-- LOGGED-IN APP SHELL WITH LEFT SIDEBAR -->
+    <div id="app-shell" class="app-shell" hidden>
+        <!-- Mobile top bar -->
+        <div class="mobile-bar">
+            <button type="button" id="sidebar-toggle" class="icon-btn" aria-label="Toggle Menu">&#9776;</button>
+            <span class="mobile-brand">Health Hub</span>
+            <span id="mobile-role-badge" class="badge role-pill"></span>
+        </div>
 
-        <!-- ========== PATIENT PORTAL ========== -->
-        <section id="patient-profile-sec" hidden>
-            <div class="section-head">
-                <div>
-                    <h2 id="pp-heading">My Health Profile</h2>
-                    <p id="pp-advice" class="muted"></p>
+        <div id="sidebar-overlay" class="sidebar-overlay" hidden></div>
+
+        <!-- LEFT SIDEBAR -->
+        <aside id="app-sidebar" class="sidebar">
+            <div class="sidebar-brand">
+                <div class="brand-row">
+                    <h1>Health Hub</h1>
                 </div>
+                <span id="role-badge" class="badge role-pill" hidden></span>
             </div>
-            <div id="pp-stats" class="report-grid"></div>
-        </section>
 
-                <section id="patient-appts-sec" hidden>
-            <h2>Book an Appointment</h2>
-            <p class="muted">Select a doctor, pick one of their upcoming available days, and click a time slot.</p>
-            <form id="pp-book-form" class="booking-box">
-                <div class="booking-step">
-                    <label class="field-label">1. Choose Doctor</label>
-                    <select id="pb-doctor"></select>
+            <nav id="app-nav" class="sidebar-nav" hidden></nav>
+
+            <div class="sidebar-footer">
+                <button type="button" id="profile-btn" class="profile-btn" hidden>
+                    <span id="profile-avatar" class="avatar">U</span>
+                    <span id="profile-btn-name">Account</span>
+                </button>
+            </div>
+        </aside>
+
+        <!-- MAIN PORTALS -->
+        <main id="app-main" class="app-content" hidden>
+
+            <!-- ========== PATIENT PORTAL ========== -->
+            <section id="patient-profile-sec" hidden>
+                <div class="section-head">
+                    <div>
+                        <h2 id="pp-heading">My Health Profile</h2>
+                        <p id="pp-advice" class="muted"></p>
+                    </div>
                 </div>
+                <div id="pp-stats" class="report-grid"></div>
+            </section>
 
-                <div class="booking-step">
-                    <label class="field-label">2. Available Days</label>
-                    <div id="pb-dates" class="slot-grid"></div>
+            <section id="patient-appts-sec" hidden>
+                <h2>Book an Appointment</h2>
+                <p class="muted">Choose your nearest clinic location, then pick a doctor, day, and time.</p>
+
+                <form id="pp-book-form" class="booking-box">
+                    <!-- Step 1: Choose Nearest Location Manually -->
+                    <div class="booking-step">
+                        <div class="step-head-row">
+                            <label class="field-label">1. Choose Nearest Clinic Location</label>
+                            <button type="button" id="pb-calc-distance" class="cancel small-btn">&#128205; Show Distance From Me</button>
+                        </div>
+                        <div id="pb-locations" class="slot-grid"></div>
+                        <div id="pb-location-info" class="location-banner" hidden>
+                            <div id="pb-location-text"></div>
+                            <button type="button" id="pb-open-maps" class="accent-btn small-btn">&#128506; Don't know this location? Open in Google Maps</button>
+                        </div>
+                    </div>
+
+                    <!-- Step 2: Choose Doctor -->
+                    <div class="booking-step">
+                        <label class="field-label">2. Choose Doctor</label>
+                        <select id="pb-doctor"></select>
+                    </div>
+
+                    <!-- Step 3: Choose Available Day -->
+                    <div class="booking-step">
+                        <label class="field-label">3. Choose Available Day</label>
+                        <div id="pb-dates" class="slot-grid"></div>
+                    </div>
+
+                    <!-- Step 4: Choose Available Time -->
+                    <div class="booking-step">
+                        <label class="field-label">4. Choose Available Time</label>
+                        <div id="pb-times" class="time-grid"></div>
+                    </div>
+
+                    <!-- Step 5: Optional Reason & Submit -->
+                    <div class="booking-step booking-submit">
+                        <select id="pb-reason">
+                            <option value="">Reason (optional)</option>
+                            <option value="General Checkup">General Checkup</option>
+                            <option value="Follow-up Visit">Follow-up Visit</option>
+                            <option value="New Symptoms / Consultation">New Symptoms / Consultation</option>
+                            <option value="Lab / Test Results">Lab / Test Results</option>
+                            <option value="Prescription Refill">Prescription Refill</option>
+                            <option value="Vaccination">Vaccination</option>
+                            <option value="Other">Other (write custom)</option>
+                        </select>
+                        <input id="pb-reason-other" placeholder="Write your reason (optional)" hidden>
+                        <button type="submit" id="pb-submit">Book appointment</button>
+                    </div>
+                </form>
+
+                <p id="pb-error" class="error"></p>
+                <p id="pb-info" class="info"></p>
+
+                <h3>My Appointments &amp; Doctor Reports</h3>
+                <div class="table-wrap">
+                    <table>
+                        <thead><tr><th>#</th><th>Date</th><th>Time</th><th>Location</th><th>Doctor</th><th>Specialty</th><th>Reason</th><th>Status</th><th>Doctor's Report</th><th></th></tr></thead>
+                        <tbody id="pp-appts-body"></tbody>
+                    </table>
                 </div>
+            </section>
 
-                <div class="booking-step">
-                    <label class="field-label">3. Available Time Slots</label>
-                    <div id="pb-times" class="slot-grid time-grid"></div>
+            <!-- ========== DOCTOR PORTAL ========== -->
+            <section id="doctor-appts-sec" hidden>
+                <div class="section-head">
+                    <div>
+                        <h2 id="dp-heading">My Appointments</h2>
+                        <p id="dp-subtitle" class="muted"></p>
+                    </div>
+                    <div class="filter-pills" id="dp-filters">
+                        <button type="button" data-filter="All" class="active">All</button>
+                        <button type="button" data-filter="Scheduled">Scheduled</button>
+                        <button type="button" data-filter="Completed">Completed</button>
+                    </div>
                 </div>
+                <div id="dp-stats" class="report-grid"></div>
+                <p id="dp-error" class="error"></p>
+                <div class="table-wrap">
+                    <table>
+                        <thead><tr><th>#</th><th>Date</th><th>Time</th><th>Location</th><th>Patient</th><th>Vitals</th><th>Reason</th><th>Status</th><th>Report</th><th>Notes</th><th></th></tr></thead>
+                        <tbody id="dp-appts-body"></tbody>
+                    </table>
+                </div>
+            </section>
 
-                                <div class="booking-step booking-submit">
-                    <select id="pb-reason">
-                        <option value="">Reason (optional)</option>
-                        <option value="General Checkup">General Checkup</option>
-                        <option value="Follow-up Visit">Follow-up Visit</option>
-                        <option value="New Symptoms / Consultation">New Symptoms / Consultation</option>
-                        <option value="Lab / Test Results">Lab / Test Results</option>
-                        <option value="Prescription Refill">Prescription Refill</option>
-                        <option value="Vaccination">Vaccination</option>
-                        <option value="Other">Other (write reason)</option>
+            <section id="doctor-patients-sec" hidden>
+                <h2>My Patients</h2>
+                <p class="muted">Click the &#8943; menu to view a patient's complete vitals, BMI, and appointment history.</p>
+                <div class="table-wrap">
+                    <table>
+                        <thead><tr><th>ID</th><th>Name</th><th>Age</th><th>Weight</th><th>Height</th><th>BMI</th><th>Category</th><th></th></tr></thead>
+                        <tbody id="dp-patients-body"></tbody>
+                    </table>
+                </div>
+            </section>
+
+            <section id="doctor-avail-sec" hidden>
+                <h2>My Available Hours &amp; Locations</h2>
+                <p class="muted">Choose which clinic location you will be at, which day, and what hours patients can book with you.</p>
+                <form id="avail-form">
+                    <select id="av-location"></select>
+                    <select id="av-day">
+                        <option value="0">Sunday</option>
+                        <option value="1">Monday</option>
+                        <option value="2">Tuesday</option>
+                        <option value="3">Wednesday</option>
+                        <option value="4">Thursday</option>
+                        <option value="5">Friday</option>
+                        <option value="6">Saturday</option>
                     </select>
-                    <input id="pb-reason-other" placeholder="Write your reason (optional)" hidden>
-                    <button type="submit" id="pb-submit">Book appointment</button>
+                    <input id="av-start" type="time" value="09:00">
+                    <input id="av-end" type="time" value="17:00">
+                    <select id="av-slot">
+                        <option value="15">Every 15 min</option>
+                        <option value="20">Every 20 min</option>
+                        <option value="30" selected>Every 30 min</option>
+                        <option value="45">Every 45 min</option>
+                        <option value="60">Every 60 min</option>
+                    </select>
+                    <button type="submit" id="av-submit-btn">Save Day Hours</button>
+                    <button type="button" id="av-cancel-btn" class="cancel" hidden>Cancel Edit</button>
+                </form>
+                <p id="av-error" class="error"></p>
+                <p id="av-info" class="info"></p>
+                <div class="table-wrap">
+                    <table>
+                        <thead><tr><th>Location</th><th>Day</th><th>Start Time</th><th>End Time</th><th>Slot Length</th><th></th></tr></thead>
+                        <tbody id="av-body"></tbody>
+                    </table>
+                </div>
+            </section>
+
+            <!-- ========== ADMIN PORTAL ========== -->
+            <section id="patients" hidden>
+                <div class="section-head">
+                    <div>
+                        <h2>Patients (Admin)</h2>
+                        <p class="muted">Manage patients. Click &#8943; next to any patient for Health Report, Edit, or Delete.</p>
+                    </div>
+                    <button type="button" id="open-add-patient-btn" class="accent-btn">+ Add Patient</button>
+                </div>
+                <p id="p-error" class="error"></p>
+                <div class="table-wrap">
+                    <table>
+                        <thead><tr><th>ID</th><th>Name</th><th>Age</th><th>Weight</th><th>BMI</th><th>Category</th><th></th></tr></thead>
+                        <tbody id="p-body"></tbody>
+                    </table>
+                </div>
+            </section>
+
+            <section id="doctors" hidden>
+                <div class="section-head">
+                    <div>
+                        <h2>Doctors (Admin)</h2>
+                        <p class="muted">Manage doctors and their clinic locations &amp; hours via the &#8943; menu.</p>
+                    </div>
+                    <button type="button" id="open-add-doctor-btn" class="accent-btn">+ Add Doctor</button>
+                </div>
+                <p id="d-error" class="error"></p>
+                <div class="table-wrap">
+                    <table>
+                        <thead><tr><th>ID</th><th>Name</th><th>Age</th><th>Specialty</th><th>Schedule &amp; Locations</th><th></th></tr></thead>
+                        <tbody id="d-body"></tbody>
+                    </table>
+                </div>
+            </section>
+
+            <section id="appointments" hidden>
+                <div class="section-head">
+                    <div>
+                        <h2>Appointments (Admin)</h2>
+                        <p class="muted">Book, complete, edit, or delete appointments across all clinic locations.</p>
+                    </div>
+                    <button type="button" id="open-add-appt-btn" class="accent-btn">+ Book Appointment</button>
+                </div>
+                <p id="a-error" class="error"></p>
+                <div class="table-wrap">
+                    <table>
+                        <thead><tr><th>#</th><th>Date</th><th>Time</th><th>Location</th><th>Patient</th><th>Doctor</th><th>Reason</th><th>Status</th><th>Report</th><th>Notes</th><th></th></tr></thead>
+                        <tbody id="a-body"></tbody>
+                    </table>
+                </div>
+            </section>
+
+            <section id="locations" hidden>
+                <div class="section-head">
+                    <div>
+                        <h2>Clinic Locations (Admin)</h2>
+                        <p class="muted">Add as many branches as you want using your device GPS or by searching any location.</p>
+                    </div>
+                    <div class="head-actions">
+                        <button type="button" id="btn-add-current-loc" class="accent-btn">&#128205; Add Current Location</button>
+                        <button type="button" id="btn-search-add-loc" class="cancel">&#128269; Search / Add Location</button>
+                    </div>
+                </div>
+                <p id="loc-error" class="error"></p>
+                <p id="loc-info" class="info"></p>
+                <div class="table-wrap">
+                    <table>
+                        <thead><tr><th>Branch Name</th><th>Address</th><th>Coordinates</th><th>Google Maps</th><th></th></tr></thead>
+                        <tbody id="loc-body"></tbody>
+                    </table>
+                </div>
+            </section>
+
+            <section id="admin-approvals" hidden>
+                <h2>Admin Approvals (Primary Admin Only)</h2>
+                <p class="muted">Approve or deny Admin account requests via the &#8943; menu. Only the Primary Admin can see this section.</p>
+                <p id="aa-error" class="error"></p>
+                <p id="aa-info" class="info"></p>
+                <div class="table-wrap">
+                    <table>
+                        <thead><tr><th>Name</th><th>Email</th><th>Status</th><th>Requested</th><th></th></tr></thead>
+                        <tbody id="aa-body"></tbody>
+                    </table>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <!-- FLOATING THREE-DOTS ACTION MENU (shared across all tables) -->
+    <div id="row-menu" class="row-menu" hidden></div>
+
+    <!-- ADD / EDIT PATIENT MODAL -->
+    <div id="patient-modal" class="modal-backdrop" hidden>
+        <div class="modal-card">
+            <div class="modal-header">
+                <h2 id="pm-patient-title">Add New Patient</h2>
+                <button type="button" id="p-modal-close" class="cancel">Close</button>
+            </div>
+            <form id="patient-form" class="modal-form">
+                <label class="field-label">Patient ID</label>
+                <input id="p-id" placeholder="Auto ID (e.g. P1)" disabled>
+                <label class="field-label">Full Name</label>
+                <input id="p-name" placeholder="Patient Name" required>
+                <label class="field-label">Age</label>
+                <input id="p-age" type="number" placeholder="Age" required>
+                <label class="field-label">Weight (Kg)</label>
+                <input id="p-weight" type="number" step="0.1" placeholder="Weight (Kg)" required>
+                <label class="field-label">Height (m)</label>
+                <input id="p-height" type="number" step="0.01" placeholder="Height (m) e.g. 1.75" required>
+                <p id="p-form-error" class="error"></p>
+                <div class="auth-actions" style="margin-top:8px;">
+                    <button type="submit" id="p-submit-btn">Add Patient</button>
+                    <button type="button" id="p-cancel" class="cancel">Cancel</button>
                 </div>
             </form>
-            <p id="pb-error" class="error"></p>
-            <p id="pb-info" class="info"></p>
+        </div>
+    </div>
 
-            <h3>My Appointments &amp; Doctor Reports</h3>
-            <div class="table-wrap">
-                <table>
-                    <thead><tr><th>#</th><th>Date</th><th>Time</th><th>Doctor</th><th>Specialty</th><th>Reason</th><th>Status</th><th>Doctor's Report</th></tr></thead>
-                    <tbody id="pp-appts-body"></tbody>
-                </table>
+    <!-- ADD / EDIT DOCTOR MODAL -->
+    <div id="doctor-modal" class="modal-backdrop" hidden>
+        <div class="modal-card">
+            <div class="modal-header">
+                <h2 id="dm-doctor-title">Add New Doctor</h2>
+                <button type="button" id="d-modal-close" class="cancel">Close</button>
             </div>
-        </section>
-
-        <!-- ========== DOCTOR PORTAL ========== -->
-        <section id="doctor-appts-sec" hidden>
-            <div class="section-head">
-                <div>
-                    <h2 id="dp-heading">My Appointments</h2>
-                    <p id="dp-subtitle" class="muted"></p>
+            <form id="doctor-form" class="modal-form">
+                <label class="field-label">Doctor ID</label>
+                <input id="d-id" placeholder="Auto ID (e.g. D1)" disabled>
+                <label class="field-label">Full Name</label>
+                <input id="d-name" placeholder="Doctor Name" required>
+                <label class="field-label">Age</label>
+                <input id="d-age" type="number" placeholder="Age" required>
+                <label class="field-label">Specialty</label>
+                <input id="d-spec" placeholder="Specialty (e.g. Cardiology)" required>
+                <p id="d-form-error" class="error"></p>
+                <div class="auth-actions" style="margin-top:8px;">
+                    <button type="submit" id="d-submit-btn">Add Doctor</button>
+                    <button type="button" id="d-cancel" class="cancel">Cancel</button>
                 </div>
-                <div class="filter-pills" id="dp-filters">
-                    <button type="button" data-filter="All" class="active">All</button>
-                    <button type="button" data-filter="Scheduled">Scheduled</button>
-                    <button type="button" data-filter="Completed">Completed</button>
-                </div>
-            </div>
-            <div id="dp-stats" class="report-grid"></div>
-            <p id="dp-error" class="error"></p>
-            <div class="table-wrap">
-                <table>
-                    <thead><tr><th>#</th><th>Date</th><th>Time</th><th>Patient</th><th>Vitals</th><th>Reason</th><th>Status</th><th>Report</th><th>Notes</th><th>Actions</th></tr></thead>
-                    <tbody id="dp-appts-body"></tbody>
-                </table>
-            </div>
-        </section>
-
-        <section id="doctor-patients-sec" hidden>
-            <h2>My Patients</h2>
-            <p class="muted">Click "Full Report" to see a patient's complete vitals, BMI, and appointment history.</p>
-            <div class="table-wrap">
-                <table>
-                    <thead><tr><th>ID</th><th>Name</th><th>Age</th><th>Weight</th><th>Height</th><th>BMI</th><th>Category</th><th>Actions</th></tr></thead>
-                    <tbody id="dp-patients-body"></tbody>
-                </table>
-            </div>
-        </section>
-
-        <section id="doctor-avail-sec" hidden>
-            <h2>My Available Hours</h2>
-            <p class="muted">Set the days and hours (HH:MM) when patients and admins can book appointments with you.</p>
-            <form id="avail-form">
-                <select id="av-day">
-                    <option value="0">Sunday</option>
-                    <option value="1">Monday</option>
-                    <option value="2">Tuesday</option>
-                    <option value="3">Wednesday</option>
-                    <option value="4">Thursday</option>
-                    <option value="5">Friday</option>
-                    <option value="6">Saturday</option>
-                </select>
-                <input id="av-start" type="time" value="09:00">
-                <input id="av-end" type="time" value="17:00">
-                <select id="av-slot">
-                    <option value="15">Every 15 min</option>
-                    <option value="20">Every 20 min</option>
-                    <option value="30" selected>Every 30 min</option>
-                    <option value="45">Every 45 min</option>
-                    <option value="60">Every 60 min</option>
-                </select>
-                <button type="submit">Save Day Hours</button>
             </form>
-            <p id="av-error" class="error"></p>
-            <p id="av-info" class="info"></p>
-            <div class="table-wrap">
-                <table>
-                    <thead><tr><th>Day</th><th>Start Time</th><th>End Time</th><th>Slot Length</th><th>Actions</th></tr></thead>
-                    <tbody id="av-body"></tbody>
-                </table>
-            </div>
-        </section>
+        </div>
+    </div>
 
-        <!-- ========== ADMIN PORTAL ========== -->
-        <section id="patients" hidden>
-            <h2>Patients (Admin)</h2>
-            <form id="patient-form">
-                <input id="p-id" placeholder="Auto ID" disabled>
-                <input id="p-name" placeholder="Name">
-                <input id="p-age" type="number" placeholder="Age">
-                <input id="p-weight" type="number" step="0.1" placeholder="Weight (Kg)">
-                <input id="p-height" type="number" step="0.01" placeholder="Height (m)">
-                <button type="submit">Add patient</button>
-                <button type="button" id="p-cancel" class="cancel" hidden>Cancel</button>
-            </form>
-            <p id="p-error" class="error"></p>
-            <div class="table-wrap">
-                <table>
-                    <thead><tr><th>ID</th><th>Name</th><th>Age</th><th>Weight</th><th>BMI</th><th>Category</th><th>Actions</th></tr></thead>
-                    <tbody id="p-body"></tbody>
-                </table>
+    <!-- ADD / EDIT APPOINTMENT MODAL -->
+    <div id="appt-modal" class="modal-backdrop" hidden>
+        <div class="modal-card">
+            <div class="modal-header">
+                <h2 id="am-appt-title">Book Appointment</h2>
+                <button type="button" id="a-modal-close" class="cancel">Close</button>
             </div>
-        </section>
-
-        <section id="doctors" hidden>
-            <h2>Doctors (Admin)</h2>
-            <form id="doctor-form">
-                <input id="d-id" placeholder="Auto ID" disabled>
-                <input id="d-name" placeholder="Name">
-                <input id="d-age" type="number" placeholder="Age">
-                <input id="d-spec" placeholder="Specialty">
-                <button type="submit">Add doctor</button>
-                <button type="button" id="d-cancel" class="cancel" hidden>Cancel</button>
-            </form>
-            <p id="d-error" class="error"></p>
-            <div class="table-wrap">
-                <table>
-                    <thead><tr><th>ID</th><th>Name</th><th>Age</th><th>Specialty</th><th>Available Days</th><th>Actions</th></tr></thead>
-                    <tbody id="d-body"></tbody>
-                </table>
-            </div>
-        </section>
-
-        <section id="appointments" hidden>
-            <h2>Appointments (Admin)</h2>
-            <form id="appt-form">
+            <form id="appt-form" class="modal-form">
+                <label class="field-label">Patient</label>
                 <select id="a-patient"></select>
+                <label class="field-label">Clinic Location</label>
+                <select id="a-location"></select>
+                <label class="field-label">Doctor</label>
                 <select id="a-doctor"></select>
+                <label class="field-label">Date</label>
                 <input id="a-date" type="date">
+                <label class="field-label">Available Time</label>
                 <select id="a-time"></select>
-                <input id="a-reason" placeholder="Reason">
+                <p id="a-avail-hint" class="muted"></p>
+                <label class="field-label">Reason (optional)</label>
+                <input id="a-reason" placeholder="Reason for visit">
+                <label class="field-label">Status</label>
                 <select id="a-status">
                     <option value="Scheduled">Scheduled</option>
                     <option value="Completed">Completed</option>
                 </select>
-                <input id="a-report" placeholder="Doctor's report (optional)">
-                <input id="a-notes" placeholder="Clinical notes (optional)">
-                <button type="submit">Book appointment</button>
-                <button type="button" id="a-cancel" class="cancel" hidden>Cancel</button>
+                <label class="field-label">Doctor's Report (optional)</label>
+                <input id="a-report" placeholder="Doctor's report">
+                <label class="field-label">Clinical Notes (optional)</label>
+                <input id="a-notes" placeholder="Clinical notes">
+                <p id="a-form-error" class="error"></p>
+                <div class="auth-actions" style="margin-top:8px;">
+                    <button type="submit" id="a-submit-btn">Book Appointment</button>
+                    <button type="button" id="a-cancel" class="cancel">Cancel</button>
+                </div>
             </form>
-            <p id="a-avail-hint" class="muted"></p>
-            <p id="a-error" class="error"></p>
-            <div class="table-wrap">
-                <table>
-                    <thead><tr><th>#</th><th>Date</th><th>Time</th><th>Patient</th><th>Doctor</th><th>Reason</th><th>Status</th><th>Report</th><th>Notes</th><th>Actions</th></tr></thead>
-                    <tbody id="a-body"></tbody>
-                </table>
-            </div>
-        </section>
-            <!-- PENDING / DENIED ADMIN SCREEN -->
-    <section id="pending-section" class="auth-card" hidden>
-        <h2 id="pending-title">Waiting for Primary Admin Approval</h2>
-        <p id="pending-msg" class="muted">Your Admin access request has been sent to the Primary Admin. You will be able to enter once approved.</p>
-        <div class="auth-actions" style="margin-top:12px;">
-            <button type="button" id="pending-refresh-btn" class="accent-btn">Check Approval Status</button>
-            <button type="button" id="pending-logout-btn" class="danger-btn">Log out</button>
         </div>
-        <p id="pending-info" class="info"></p>
-    </section>
-    </main>
+    </div>
 
-    <!-- Top-Left Profile Modal (Info + Edit + Log Out) -->
+    <!-- ADD / SEARCH / EDIT LOCATION MODAL -->
+    <div id="location-modal" class="modal-backdrop" hidden>
+        <div class="modal-card">
+            <div class="modal-header">
+                <h2 id="lm-title">Add Clinic Location</h2>
+                <button type="button" id="lm-close" class="cancel">Close</button>
+            </div>
+
+            <div id="lm-search-box" class="loc-search-box">
+                <label class="field-label">Search any place, street, or clinic address</label>
+                <div class="password-wrap">
+                    <input id="lm-search-input" placeholder="e.g. Nasr City Cairo, Maadi, Alexandria...">
+                    <button type="button" id="lm-search-btn" class="accent-btn">Search</button>
+                </div>
+                <div id="lm-search-results" class="search-results"></div>
+            </div>
+
+            <form id="location-form" class="modal-form" style="margin-top:10px;">
+                <label class="field-label">Branch / Location Name</label>
+                <input id="lm-name" placeholder="e.g. Health Hub — Main Branch" required>
+                <label class="field-label">Full Address</label>
+                <input id="lm-address" placeholder="Street, District, City">
+                <div class="coord-row">
+                    <div>
+                        <label class="field-label">Latitude</label>
+                        <input id="lm-lat" type="number" step="any" placeholder="e.g. 30.0444">
+                    </div>
+                    <div>
+                        <label class="field-label">Longitude</label>
+                        <input id="lm-lng" type="number" step="any" placeholder="e.g. 31.2357">
+                    </div>
+                </div>
+                <p id="lm-error" class="error"></p>
+                <p id="lm-info" class="info"></p>
+                <div class="auth-actions" style="margin-top:8px;">
+                    <button type="submit" id="lm-submit-btn">Save Location</button>
+                    <button type="button" id="lm-use-gps" class="cancel">&#128205; Use Current GPS</button>
+                    <button type="button" id="lm-preview-map" class="cancel">&#128506; Preview Map</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Profile Modal (Info + Admin Switcher + Edit + Log Out) -->
     <div id="profile-modal" class="modal-backdrop" hidden>
         <div class="modal-card">
             <div class="modal-header">
                 <h2>My Profile</h2>
                 <button type="button" id="pm-close" class="cancel">Close</button>
             </div>
-                        <div id="pm-view">
+            <div id="pm-view">
                 <div id="pm-details" class="report-grid"></div>
                 <div id="pm-admin-switch" class="admin-switch-box" hidden>
                     <label class="field-label">Switch Portal View (Admin)</label>
@@ -360,7 +551,6 @@
                     <button type="button" id="pm-edit-btn" class="accent-btn">Edit Information</button>
                     <button type="button" id="pm-logout-btn" class="danger-btn">Log out</button>
                 </div>
-            </div>
             </div>
             <form id="pm-edit-form" class="modal-form" hidden>
                 <label class="field-label">Full Name</label>
@@ -430,7 +620,7 @@
         </div>
     </div>
 
-        <!-- Admin: Manage Doctor Availability Modal -->
+    <!-- Admin: Manage Doctor Availability & Locations Modal -->
     <div id="avail-modal" class="modal-backdrop" hidden>
         <div class="modal-card">
             <div class="modal-header">
@@ -438,6 +628,7 @@
                 <button type="button" id="am-close" class="cancel">Close</button>
             </div>
             <form id="am-form">
+                <select id="am-location"></select>
                 <select id="am-day">
                     <option value="0">Sunday</option>
                     <option value="1">Monday</option>
@@ -456,13 +647,14 @@
                     <option value="45">Every 45 min</option>
                     <option value="60">Every 60 min</option>
                 </select>
-                <button type="submit">Save Day Hours</button>
+                <button type="submit" id="am-submit-btn">Save Day Hours</button>
+                <button type="button" id="am-cancel-btn" class="cancel" hidden>Cancel Edit</button>
             </form>
             <p id="am-error" class="error"></p>
             <p id="am-info" class="info"></p>
             <div class="table-wrap">
                 <table>
-                    <thead><tr><th>Day</th><th>Start</th><th>End</th><th>Slot</th><th>Actions</th></tr></thead>
+                    <thead><tr><th>Location</th><th>Day</th><th>Start</th><th>End</th><th>Slot</th><th></th></tr></thead>
                     <tbody id="am-body"></tbody>
                 </table>
             </div>
@@ -471,6 +663,6 @@
 
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
-    <script src="script.js"></script>
+    <script src="script.js?v=3"></script>
 </body>
 </html>
