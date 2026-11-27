@@ -601,20 +601,86 @@ function populateImpersonateSelect(role) {
     }
 }
 
-function openProfileModal() {
+function setProfileTab(mode) {
+    const isEdit = mode === "edit";
+    const tabView = document.getElementById("pm-tab-view");
+    const tabEdit = document.getElementById("pm-tab-edit");
+    if (tabView) tabView.classList.toggle("active", !isEdit);
+    if (tabEdit) tabEdit.classList.toggle("active", isEdit);
+    setHidden("pm-view", isEdit);
+    setHidden("pm-edit-form", !isEdit);
+    showError("pm-error", "");
+    showInfo("pm-info", "");
+
+    if (isEdit) {
+        populateProfileEditForm();
+    }
+}
+
+function updateLiveBmiPreview() {
+    const preview = document.getElementById("pm-bmi-preview");
+    if (!preview) return;
+    const w = num("pm-p-weight");
+    const h = num("pm-p-height");
+    if (w >= 2 && w <= 400 && h >= 0.4 && h <= 2.5) {
+        const b = w / (h * h);
+        const cat = category(b);
+        preview.innerHTML = "Live BMI Preview: <strong>" + b.toFixed(1) + " (" + cat + ")</strong>";
+    } else {
+        preview.innerHTML = "Live BMI Preview: <strong>Enter valid weight &amp; height</strong>";
+    }
+}
+
+function populateProfileEditForm() {
+    if (!currentProfile || !currentUser) return;
+    const roleLabel = currentProfile.role === "admin" && currentProfile.is_primary_admin
+        ? "Primary Admin"
+        : currentProfile.role.charAt(0).toUpperCase() + currentProfile.role.slice(1);
+
+    document.getElementById("pm-name").value = currentProfile.full_name || "";
+    const emailRead = document.getElementById("pm-email-readonly");
+    const roleRead = document.getElementById("pm-role-readonly");
+    if (emailRead) emailRead.value = currentUser.email || "";
+    if (roleRead) roleRead.value = roleLabel;
+
+    const isP = currentProfile.role === "patient";
+    const isD = currentProfile.role === "doctor";
+    setHidden("pm-patient-fields", !isP);
+    setHidden("pm-doctor-fields", !isD);
+
+    if (isP && myPatient) {
+        document.getElementById("pm-p-age").value = myPatient.age;
+        document.getElementById("pm-p-weight").value = myPatient.weight;
+        document.getElementById("pm-p-height").value = myPatient.height;
+        updateLiveBmiPreview();
+    } else if (isD && myDoctor) {
+        document.getElementById("pm-d-age").value = myDoctor.age;
+        document.getElementById("pm-d-spec").value = myDoctor.specialty;
+    }
+}
+
+function openProfileModal(initialTab) {
     if (!currentProfile || !currentUser) return;
     closeMobileSidebar();
     showError("pm-error", "");
     showInfo("pm-info", "");
-    setHidden("pm-view", false);
-    setHidden("pm-edit-form", true);
 
-    const details = document.getElementById("pm-details");
-    details.innerHTML = "";
-
+    const name = currentProfile.full_name || currentUser.email || "User";
     const roleLabel = currentProfile.role === "admin" && currentProfile.is_primary_admin
         ? "Primary Admin"
         : currentProfile.role.charAt(0).toUpperCase() + currentProfile.role.slice(1);
+
+    let idTag = "";
+    if (currentProfile.role === "patient" && myPatient) idTag = " · " + myPatient.id;
+    else if (currentProfile.role === "doctor" && myDoctor) idTag = " · " + myDoctor.id;
+
+    document.getElementById("pm-big-avatar").textContent = name.charAt(0).toUpperCase();
+    document.getElementById("pm-banner-name").textContent = name;
+    document.getElementById("pm-banner-badge").textContent = roleLabel + idTag;
+    document.getElementById("pm-banner-email").textContent = currentUser.email || "";
+
+    const details = document.getElementById("pm-details");
+    details.innerHTML = "";
 
     const rows = [
         ["Role", roleLabel],
@@ -660,6 +726,7 @@ function openProfileModal() {
         }
     }
 
+    setProfileTab(initialTab === "edit" ? "edit" : "view");
     setHidden("profile-modal", false);
 }
 
@@ -667,8 +734,14 @@ function closeProfileModal() {
     setHidden("profile-modal", true);
 }
 
-document.getElementById("profile-btn").addEventListener("click", openProfileModal);
+document.getElementById("profile-btn").addEventListener("click", function () { openProfileModal("view"); });
 document.getElementById("pm-close").addEventListener("click", closeProfileModal);
+document.getElementById("pm-tab-view").addEventListener("click", function () { setProfileTab("view"); });
+document.getElementById("pm-tab-edit").addEventListener("click", function () { setProfileTab("edit"); });
+document.getElementById("pm-edit-btn").addEventListener("click", function () { setProfileTab("edit"); });
+document.getElementById("pm-cancel-edit").addEventListener("click", function () { setProfileTab("view"); });
+document.getElementById("pm-p-weight").addEventListener("input", updateLiveBmiPreview);
+document.getElementById("pm-p-height").addEventListener("input", updateLiveBmiPreview);
 
 document.querySelectorAll("#pm-role-btns button").forEach(function (btn) {
     btn.addEventListener("click", function () {
@@ -698,34 +771,6 @@ document.getElementById("pm-apply-view").addEventListener("click", async functio
     selectedBookingTime = "";
     applyPortalView();
     await loadAll(false);
-});
-
-document.getElementById("pm-edit-btn").addEventListener("click", function () {
-    showError("pm-error", "");
-    showInfo("pm-info", "");
-    setHidden("pm-view", true);
-    setHidden("pm-edit-form", false);
-
-    document.getElementById("pm-name").value = currentProfile.full_name || "";
-    const isP = currentProfile.role === "patient";
-    const isD = currentProfile.role === "doctor";
-    setHidden("pm-patient-fields", !isP);
-    setHidden("pm-doctor-fields", !isD);
-
-    if (isP && myPatient) {
-        document.getElementById("pm-p-age").value = myPatient.age;
-        document.getElementById("pm-p-weight").value = myPatient.weight;
-        document.getElementById("pm-p-height").value = myPatient.height;
-    } else if (isD && myDoctor) {
-        document.getElementById("pm-d-age").value = myDoctor.age;
-        document.getElementById("pm-d-spec").value = myDoctor.specialty;
-    }
-});
-
-document.getElementById("pm-cancel-edit").addEventListener("click", function () {
-    setHidden("pm-edit-form", true);
-    setHidden("pm-view", false);
-    showError("pm-error", "");
 });
 
 document.getElementById("pm-edit-form").addEventListener("submit", async function (e) {
@@ -763,11 +808,16 @@ document.getElementById("pm-edit-form").addEventListener("submit", async functio
     currentProfile.full_name = name;
     updateProfileButton();
     await loadAll();
-    openProfileModal();
-    showInfo("pm-info", "Information updated!");
+    openProfileModal("view");
+    showInfo("pm-info", "Profile saved successfully!");
 });
 
 document.getElementById("pm-logout-btn").addEventListener("click", async function () {
+    closeProfileModal();
+    await db.auth.signOut();
+});
+
+document.getElementById("pm-edit-logout-btn").addEventListener("click", async function () {
     closeProfileModal();
     await db.auth.signOut();
 });
@@ -1321,39 +1371,230 @@ function renderPatientDoctorOptions(keepSelection) {
     renderPatientBookingDates(!!keepSelection);
 }
 
-function renderPatientPortal(keepSelection) {
-    if (!myPatient) return;
-    const b = bmi(myPatient);
-    const cat = category(b);
+function goToPatientTab(sectionId, bgKey) {
+    showSection(sectionId, bgKey);
+    const nav = document.getElementById("app-nav");
+    if (nav) {
+        nav.querySelectorAll("button").forEach(function (b) {
+            b.classList.toggle("active", b.dataset.section === sectionId);
+        });
+    }
+}
 
-    const myAppts = appointments.filter(function (a) { return a.patient_id === myPatient.id; });
-    const completedCount = myAppts.filter(function (a) { return a.status === "Completed"; }).length;
-    const scheduledCount = myAppts.length - completedCount;
+document.getElementById("pp-go-book").addEventListener("click", function () {
+    goToPatientTab("patient-appts-sec", "appointments");
+});
+document.getElementById("pp-view-all-appts").addEventListener("click", function () {
+    goToPatientTab("patient-appts-sec", "appointments");
+});
+document.getElementById("pp-find-clinic").addEventListener("click", function () {
+    goToPatientTab("patient-appts-sec", "appointments");
+});
+document.getElementById("pp-go-edit").addEventListener("click", function () {
+    openProfileModal("edit");
+});
 
-    document.getElementById("pp-heading").textContent = "Welcome, " + myPatient.name + " (" + myPatient.id + ")";
-    document.getElementById("pp-advice").textContent = healthAdvice(cat);
+function renderPatientHomeDashboard(myAppts) {
+    const displayName = myPatient ? myPatient.name : (currentProfile ? currentProfile.full_name : "Patient");
+    const idLabel = myPatient ? " (" + myPatient.id + ")" : "";
+    const completedList = myAppts.filter(function (a) { return a.status === "Completed"; });
+    const upcomingList = myAppts.filter(function (a) { return (a.status || "Scheduled") !== "Completed"; });
+
+    const hour = new Date().getHours();
+    const greeting = hour < 12 ? "Good morning" : (hour < 18 ? "Good afternoon" : "Good evening");
+    document.getElementById("pp-greeting-pill").textContent = greeting + (myPatient ? " · ID " + myPatient.id : "");
+    document.getElementById("pp-heading").textContent = "Welcome, " + displayName + idLabel;
 
     const grid = document.getElementById("pp-stats");
     grid.innerHTML = "";
-    [
-        ["Patient ID", myPatient.id],
-        ["Age", myPatient.age + " yrs"],
-        ["Weight", myPatient.weight + " Kg"],
-        ["Height", myPatient.height + " m"],
-        ["BMI", b.toFixed(1) + " (" + cat + ")"],
-        ["Appointments", scheduledCount + " scheduled · " + completedCount + " completed"]
-    ].forEach(function (pair) {
-        const card = document.createElement("div");
-        card.className = "report-stat";
-        const label = document.createElement("small");
-        label.textContent = pair[0];
-        const val = document.createElement("strong");
-        val.textContent = pair[1];
-        card.appendChild(label);
-        card.appendChild(val);
-        grid.appendChild(card);
-    });
 
+    let cat = "Normal";
+    if (myPatient) {
+        const b = bmi(myPatient);
+        cat = category(b);
+        document.getElementById("pp-advice").textContent = healthAdvice(cat);
+
+        [
+            ["Patient ID", myPatient.id],
+            ["Age", myPatient.age + " yrs"],
+            ["Weight", myPatient.weight + " Kg"],
+            ["Height", myPatient.height + " m"],
+            ["BMI", b.toFixed(1) + " (" + cat + ")"],
+            ["Appointments", upcomingList.length + " upcoming · " + completedList.length + " completed"]
+        ].forEach(function (pair) {
+            const card = document.createElement("div");
+            card.className = "report-stat";
+            const label = document.createElement("small");
+            label.textContent = pair[0];
+            const val = document.createElement("strong");
+            val.textContent = pair[1];
+            card.appendChild(label);
+            card.appendChild(val);
+            grid.appendChild(card);
+        });
+
+        // Visual BMI Meter & Healthy Target Range
+        setHidden("pp-bmi-card", false);
+        const badge = document.getElementById("pp-bmi-badge");
+        badge.textContent = b.toFixed(1) + " · " + cat;
+        badge.className = "badge " + (cat === "Normal" ? "completed" : (cat === "Obese" ? "danger" : "scheduled"));
+
+        // Map BMI 14..36 onto 4%..96% of the bar
+        const pct = Math.max(4, Math.min(96, ((b - 14) / (36 - 14)) * 100));
+        document.getElementById("pp-bmi-pin").style.left = pct.toFixed(1) + "%";
+
+        const h = Number(myPatient.height);
+        const minW = (18.5 * h * h).toFixed(1);
+        const maxW = (24.9 * h * h).toFixed(1);
+        document.getElementById("pp-bmi-target").textContent =
+            "Healthy weight range for your height (" + h + " m): " + minW + " Kg – " + maxW + " Kg.";
+    } else {
+        document.getElementById("pp-advice").textContent = "Your patient record is ready to customize — book an appointment or update your profile anytime.";
+        setHidden("pp-bmi-card", true);
+    }
+
+    // Next Upcoming Visit Card
+    const nextBox = document.getElementById("pp-next-appt");
+    nextBox.innerHTML = "";
+    if (upcomingList.length === 0) {
+        const empty = document.createElement("div");
+        empty.className = "empty-state";
+        empty.innerHTML = "<span>You have no upcoming appointments scheduled yet.</span>";
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "accent-btn small-btn";
+        btn.textContent = "📅 Book Your First Visit";
+        btn.addEventListener("click", function () { goToPatientTab("patient-appts-sec", "appointments"); });
+        empty.appendChild(btn);
+        nextBox.appendChild(empty);
+    } else {
+        const next = upcomingList[0];
+        const doc = findById(doctors, next.doctor_id);
+        const loc = findLocation(next.location_id);
+        const wrap = document.createElement("div");
+        wrap.className = "spotlight-box";
+
+        const line1 = document.createElement("strong");
+        line1.textContent = "Dr. " + (doc ? doc.name : next.doctor_id) + (doc ? " (" + doc.specialty + ")" : "");
+        const line2 = document.createElement("div");
+        line2.className = "muted";
+        line2.textContent = "📅 " + next.date + " at " + format12Hour(next.appt_time) + (next.reason ? " · " + next.reason : "");
+        wrap.appendChild(line1);
+        wrap.appendChild(line2);
+
+        if (loc) {
+            const meta = document.createElement("div");
+            meta.className = "spotlight-meta";
+            const locSpan = document.createElement("span");
+            locSpan.textContent = "📍 " + loc.name;
+            const mapBtn = document.createElement("button");
+            mapBtn.type = "button";
+            mapBtn.className = "cancel small-btn";
+            mapBtn.textContent = "🗺️ Open in Google Maps";
+            mapBtn.addEventListener("click", function () { openLocationInGoogleMaps(loc); });
+            meta.appendChild(locSpan);
+            meta.appendChild(mapBtn);
+            wrap.appendChild(meta);
+        }
+        nextBox.appendChild(wrap);
+    }
+
+    // Latest Doctor Report Card
+    const repBox = document.getElementById("pp-latest-report");
+    repBox.innerHTML = "";
+    const withReports = completedList.filter(function (a) { return a.report && a.report.trim() !== ""; });
+    if (withReports.length === 0) {
+        const empty = document.createElement("div");
+        empty.className = "empty-state";
+        empty.textContent = "No doctor reports yet. After a doctor completes your visit, their diagnosis & instructions will appear right here.";
+        repBox.appendChild(empty);
+    } else {
+        const latest = withReports[withReports.length - 1];
+        const doc = findById(doctors, latest.doctor_id);
+        const wrap = document.createElement("div");
+        wrap.className = "spotlight-box";
+
+        const head = document.createElement("strong");
+        head.textContent = "Dr. " + (doc ? doc.name : latest.doctor_id) + " · " + latest.date;
+        const body = document.createElement("p");
+        body.style.margin = "0";
+        body.textContent = latest.report;
+        wrap.appendChild(head);
+        wrap.appendChild(body);
+        repBox.appendChild(wrap);
+    }
+
+    // Clinic Branches Grid
+    const clinicsBox = document.getElementById("pp-clinics-list");
+    clinicsBox.innerHTML = "";
+    if (locations.length === 0) {
+        clinicsBox.innerHTML = "<span class='muted'>Clinic branches will appear here once added by the clinic admin.</span>";
+    } else {
+        locations.forEach(function (loc) {
+            const card = document.createElement("div");
+            card.className = "clinic-card";
+            const nameEl = document.createElement("strong");
+            nameEl.textContent = "📍 " + loc.name;
+            card.appendChild(nameEl);
+            if (loc.address) {
+                const addrEl = document.createElement("small");
+                addrEl.textContent = loc.address;
+                card.appendChild(addrEl);
+            }
+            const url = googleMapsUrl(loc);
+            if (url) {
+                const link = document.createElement("a");
+                link.href = url;
+                link.target = "_blank";
+                link.rel = "noopener";
+                link.className = "map-link";
+                link.textContent = "🗺️ Open in Google Maps ↗";
+                card.appendChild(link);
+            }
+            clinicsBox.appendChild(card);
+        });
+    }
+
+    // Personalized Daily Wellness Tips
+    const tipsBox = document.getElementById("pp-tips-grid");
+    tipsBox.innerHTML = "";
+    const tips = [
+        {
+            title: "💧 Stay Hydrated",
+            text: "Aim for 7–8 glasses of water daily to support energy, focus, and healthy metabolism."
+        },
+        {
+            title: cat === "Normal" ? "🏃 Keep Your Momentum" : (cat === "Underweight" ? "🥗 Nutrient-Dense Meals" : "🚶 Daily 30-Min Movement"),
+            text: cat === "Normal"
+                ? "Great job keeping a healthy BMI! Aim for 150 minutes of moderate activity each week."
+                : (cat === "Underweight"
+                    ? "Include protein-rich snacks and healthy fats, and check in with a doctor for a tailored plan."
+                    : "A brisk 30-minute walk daily plus balanced portions can steadily improve your BMI and heart health.")
+        },
+        {
+            title: "🩺 Routine Checkups",
+            text: "Keep your weight and health vitals up to date in Edit Profile before every clinic visit."
+        }
+    ];
+    tips.forEach(function (t) {
+        const card = document.createElement("div");
+        card.className = "tip-card";
+        const h = document.createElement("strong");
+        h.textContent = t.title;
+        const p = document.createElement("p");
+        p.textContent = t.text;
+        card.appendChild(h);
+        card.appendChild(p);
+        tipsBox.appendChild(card);
+    });
+}
+
+function renderPatientPortal(keepSelection) {
+    const myAppts = myPatient
+        ? appointments.filter(function (a) { return a.patient_id === myPatient.id; })
+        : [];
+
+    renderPatientHomeDashboard(myAppts);
     renderPatientLocationPicker(!!keepSelection);
     renderPatientDoctorOptions(!!keepSelection);
 
