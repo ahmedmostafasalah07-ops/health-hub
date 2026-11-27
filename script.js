@@ -1203,10 +1203,6 @@ async function renderPatientBookingTimes(docId, dateIso, dayAvail, keepSelection
     }
 }
 
-document.getElementById("pp-quick-weight").addEventListener("click", function () {
-    if (myPatient) updateWeight(myPatient);
-});
-
 document.getElementById("pb-doctor").addEventListener("change", function () {
     selectedBookingDate = "";
     selectedBookingTime = "";
@@ -1603,7 +1599,6 @@ function renderPatients() {
             body,
             [p.id, p.name, p.age, p.weight + " Kg", bmi(p).toFixed(1), category(bmi(p))],
             [
-                { label: "Update Weight", onClick: function () { updateWeight(p); } },
                 { label: "Health Report", className: "success", onClick: function () { openHealthReport(p, true); } },
                 { label: "Edit", onClick: function () { startEditPatient(p); } },
                 { label: "Delete", onClick: function () { deletePatient(p); } }
