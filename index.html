@@ -120,6 +120,16 @@
         </form>
         <p id="setup-error" class="error"></p>
     </section>
+        <!-- PENDING / DENIED ADMIN SCREEN -->
+    <section id="pending-section" class="auth-card" hidden>
+        <h2 id="pending-title">Waiting for Primary Admin Approval</h2>
+        <p id="pending-msg" class="muted">Your Admin access request has been sent to the Primary Admin. You will be able to enter once approved.</p>
+        <div class="auth-actions" style="margin-top:12px;">
+            <button type="button" id="pending-refresh-btn" class="accent-btn">Check Approval Status</button>
+            <button type="button" id="pending-logout-btn" class="danger-btn">Log out</button>
+        </div>
+        <p id="pending-info" class="info"></p>
+    </section>
 
     <!-- MAIN PORTALS -->
     <main id="app-main" hidden>
@@ -316,6 +326,16 @@
                 </table>
             </div>
         </section>
+            <!-- PENDING / DENIED ADMIN SCREEN -->
+    <section id="pending-section" class="auth-card" hidden>
+        <h2 id="pending-title">Waiting for Primary Admin Approval</h2>
+        <p id="pending-msg" class="muted">Your Admin access request has been sent to the Primary Admin. You will be able to enter once approved.</p>
+        <div class="auth-actions" style="margin-top:12px;">
+            <button type="button" id="pending-refresh-btn" class="accent-btn">Check Approval Status</button>
+            <button type="button" id="pending-logout-btn" class="danger-btn">Log out</button>
+        </div>
+        <p id="pending-info" class="info"></p>
+    </section>
     </main>
 
     <!-- Top-Left Profile Modal (Info + Edit + Log Out) -->
